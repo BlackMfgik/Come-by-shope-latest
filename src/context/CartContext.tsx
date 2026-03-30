@@ -1,5 +1,5 @@
-import { createContext, useContext, useState } from 'react';
-import type { ReactNode } from 'react';
+import { createContext, useContext, useState } from "react";
+import type { ReactNode } from "react";
 
 export interface CartItem {
   id: number | null;
@@ -12,7 +12,13 @@ export interface CartItem {
 
 interface CartCtx {
   items: CartItem[];
-  addItem: (name: string, price: number, image: string, description: string, id: number | null) => void;
+  addItem: (
+    name: string,
+    price: number,
+    image: string,
+    description: string,
+    id: number | null,
+  ) => void;
   updateQty: (name: string, delta: number) => void;
   removeItem: (name: string) => void;
   clearCart: () => void;
@@ -22,7 +28,11 @@ interface CartCtx {
 const CartContext = createContext<CartCtx>({} as CartCtx);
 
 function loadCart(): CartItem[] {
-  try { return JSON.parse(localStorage.getItem('cartItems') ?? '[]'); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem("cartItems") ?? "[]");
+  } catch {
+    return [];
+  }
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -30,31 +40,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   function persist(next: CartItem[]) {
     setItems(next);
-    try { localStorage.setItem('cartItems', JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem("cartItems", JSON.stringify(next));
+    } catch {
+      /* localStorage unavailable */
+    }
   }
 
-  function addItem(name: string, price: number, image: string, description: string, id: number | null) {
-    setItems(prev => {
+  function addItem(
+    name: string,
+    price: number,
+    image: string,
+    description: string,
+    id: number | null,
+  ) {
+    setItems((prev) => {
       const copy = [...prev];
-      const existing = copy.find(i => (id != null ? i.id === id : i.name === name));
-      if (existing) { existing.quantity++; }
-      else { copy.push({ id, name, price, image, description, quantity: 1 }); }
-      try { localStorage.setItem('cartItems', JSON.stringify(copy)); } catch {}
+      const existing = copy.find((i) =>
+        id != null ? i.id === id : i.name === name,
+      );
+      if (existing) {
+        existing.quantity++;
+      } else {
+        copy.push({ id, name, price, image, description, quantity: 1 });
+      }
+      try {
+        localStorage.setItem("cartItems", JSON.stringify(copy));
+      } catch {
+        /* localStorage unavailable */
+      }
       return copy;
     });
   }
 
   function updateQty(name: string, delta: number) {
-    setItems(prev => {
-      let copy = prev.map(i => i.name === name ? { ...i, quantity: i.quantity + delta } : i)
-        .filter(i => i.quantity > 0);
-      try { localStorage.setItem('cartItems', JSON.stringify(copy)); } catch {}
+    setItems((prev) => {
+      const copy = prev
+        .map((i) =>
+          i.name === name ? { ...i, quantity: i.quantity + delta } : i,
+        )
+        .filter((i) => i.quantity > 0);
+      try {
+        localStorage.setItem("cartItems", JSON.stringify(copy));
+      } catch {
+        /* localStorage unavailable */
+      }
       return copy;
     });
   }
 
   function removeItem(name: string) {
-    persist(items.filter(i => i.name !== name));
+    persist(items.filter((i) => i.name !== name));
   }
 
   function clearCart() {
@@ -63,7 +99,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
-  return <CartContext.Provider value={{ items, addItem, updateQty, removeItem, clearCart, total }}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider
+      value={{ items, addItem, updateQty, removeItem, clearCart, total }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
 }
-
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => useContext(CartContext);

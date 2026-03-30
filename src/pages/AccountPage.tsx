@@ -263,16 +263,6 @@ export default function AccountPage() {
   const [displayPayment, setDisplayPayment] = useState(user?.payment ?? "");
   const [displayPassword, setDisplayPassword] = useState("");
 
-  useEffect(() => {
-    if (user) {
-      setDisplayName(user.name ?? "");
-      setDisplayEmail(user.email ?? "");
-      setDisplayPhone(user.phone ?? "");
-      setDisplayAddress(user.address ?? "");
-      setDisplayPayment(user.payment ?? "");
-    }
-  }, [user]);
-
   if (!user) {
     navigate("/login");
     return null;
@@ -332,8 +322,10 @@ export default function AccountPage() {
             break;
         }
       }
-    } catch (err: any) {
-      alert(err.message || "Помилка при збереженні");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Помилка при збереженні";
+      alert(message);
     }
 
     setEditField(null);

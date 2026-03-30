@@ -1,6 +1,6 @@
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import ProductCatalog from '../components/ProductCatalog';
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import ProductCatalog from "../components/ProductCatalog";
 
 export default function HomePage() {
   return (
@@ -8,8 +8,12 @@ export default function HomePage() {
       <Header />
       <main>
         <section className="hero">
-          <h1>Замовляй їжу та<br />продукти онлайн —<br />оплата на місці чи тут</h1>
-
+          <h1>
+            Замовляй їжу та
+            <br />
+            продукти онлайн —<br />
+            оплата на місці чи тут
+          </h1>
         </section>
 
         <ProductCatalog />

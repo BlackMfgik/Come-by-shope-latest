@@ -5,9 +5,14 @@ export default function Footer() {
         <div className="footer-logo">
           <img src="/images/shop-icon.png" width={32} alt="logo" />
           <span className="footer-brand">Come by</span>
-          <p>Найкращі продукти та страви з доставкою до дверей. Замовляйте онлайн та насолоджуйтесь якістю.</p>
+          <p>
+            Найкращі продукти та страви з доставкою до дверей. Замовляйте онлайн
+            та насолоджуйтесь якістю.
+          </p>
           <div className="footer-social">
-            <a href="#"><img src="/images/instagram.png" alt="instagram" /></a>
+            <a href="#">
+              <img src="/images/instagram.png" alt="instagram" />
+            </a>
           </div>
         </div>
         <div className="footer-contacts">

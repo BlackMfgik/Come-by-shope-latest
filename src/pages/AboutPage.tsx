@@ -1,5 +1,5 @@
-import Header from '../components/Header';
-import Footer from '../components/Footer';
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 
 export default function AboutPage() {
   return (
@@ -7,7 +7,9 @@ export default function AboutPage() {
       <Header />
       <main>
         <section className="team-section">
-          <h1>Наша команда <span className="emoji">💕</span></h1>
+          <h1>
+            Наша команда <span className="emoji">💕</span>
+          </h1>
           <div className="team-image">
             <img src="/images/cats.jpeg" alt="Наша команда" />
           </div>
