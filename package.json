@@ -4,17 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run front\" \"npm run back\"",
-    "front": "vite",
-    "back": "node mock-server.js",
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@theme-toggles/react": "^4.1.0",
-    "concurrently": "^9.2.1",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1"
