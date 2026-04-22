@@ -12,19 +12,6 @@ import {
 import type { Order } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import {
-  User,
-  Package,
-  Mail,
-  Phone,
-  Lock,
-  CreditCard,
-  MapPin,
-  LogOut,
-  ChevronRight,
-  Pencil,
-  type LucideIcon,
-} from "lucide-react";
 
 type Tab = "profile" | "orders";
 type Field = "name" | "email" | "phone" | "password" | "payment" | "address";
@@ -265,7 +252,7 @@ function OrderHistory({ token }: { token: string }) {
 // ─── AccountItem ──────────────────────────────────────────────────────────────
 
 interface AccountItemProps {
-  icon: LucideIcon;
+  icon: string;
   label: string;
   value: string;
   field: Field;
@@ -274,7 +261,7 @@ interface AccountItemProps {
 }
 
 function AccountItem({
-  icon: Icon,
+  icon,
   label,
   value,
   field,
@@ -284,7 +271,7 @@ function AccountItem({
   return (
     <div className="account-item">
       <div className="item-info">
-        <Icon size={24} />
+        <img src={icon} alt={field} />
         <div>
           <strong>{label}</strong>
           {value && <p>{value}</p>}
@@ -296,7 +283,10 @@ function AccountItem({
         aria-label={`Редагувати ${label}`}
         onClick={() => onEdit(field)}
       >
-        {isArrow ? <ChevronRight size={20} /> : <Pencil size={20} />}
+        <img
+          src={isArrow ? "/images/icon-arrow.png" : "/images/icon-edit.png"}
+          alt="edit"
+        />
       </button>
     </div>
   );
@@ -392,7 +382,7 @@ export default function AccountPage() {
               className={tab === "profile" ? "active" : ""}
               onClick={() => setTab("profile")}
             >
-              <User size={20} />
+              <img src="/images/user.png" alt="user" />
               <span>Обліковий запис</span>
             </li>
             <li
@@ -400,7 +390,7 @@ export default function AccountPage() {
               className={tab === "orders" ? "active" : ""}
               onClick={() => setTab("orders")}
             >
-              <Package size={20} />
+              <img src="/images/icon-order.png" alt="orders" />
               <span>Замовлення</span>
             </li>
           </ul>
@@ -412,28 +402,28 @@ export default function AccountPage() {
               <h1>Обліковий запис</h1>
               <div className="account-card">
                 <AccountItem
-                  icon={User}
+                  icon="/images/user.png"
                   label="Ім'я"
                   value={displayName}
                   field="name"
                   onEdit={setEditField}
                 />
                 <AccountItem
-                  icon={Mail}
+                  icon="/images/icon-envelope.png"
                   label="Адреса ел. пошти"
                   value={displayEmail}
                   field="email"
                   onEdit={setEditField}
                 />
                 <AccountItem
-                  icon={Phone}
+                  icon="/images/icon-telephone.png"
                   label="Номер телефону"
                   value={displayPhone}
                   field="phone"
                   onEdit={setEditField}
                 />
                 <AccountItem
-                  icon={Lock}
+                  icon="/images/icon-lock.png"
                   label="Змінити пароль"
                   value={displayPassword}
                   field="password"
@@ -441,7 +431,7 @@ export default function AccountPage() {
                   isArrow
                 />
                 <AccountItem
-                  icon={CreditCard}
+                  icon="/images/icon-card.png"
                   label="Способи оплати"
                   value={displayPayment}
                   field="payment"
@@ -449,7 +439,7 @@ export default function AccountPage() {
                   isArrow
                 />
                 <AccountItem
-                  icon={MapPin}
+                  icon="/images/icon-location.png"
                   label="Адреса"
                   value={displayAddress}
                   field="address"
@@ -458,7 +448,7 @@ export default function AccountPage() {
                 />
                 <div className="account-item logout-item">
                   <div className="item-info">
-                    <LogOut size={24} />
+                    <img src="/images/logout.png" alt="logout" />
                     <div>
                       <strong>Вийти з акаунту</strong>
                     </div>
@@ -472,7 +462,7 @@ export default function AccountPage() {
                       router.push("/login");
                     }}
                   >
-                    <ChevronRight size={20} />
+                    <img src="/images/icon-arrow.png" alt="arrow" />
                   </button>
                 </div>
               </div>
