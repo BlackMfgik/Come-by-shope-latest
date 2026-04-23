@@ -174,6 +174,7 @@ function OrderHistory({ token }: { token: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openId, setOpenId] = useState<number | null>(null);
 
   useEffect(() => {
     apiGetMyOrders(token)
@@ -187,77 +188,64 @@ function OrderHistory({ token }: { token: string }) {
   if (orders.length === 0) return <p>У вас поки немає замовлень.</p>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {orders.map((order) => (
-        <div
-          key={order.id}
-          className="account-card"
-          style={{ padding: "1rem 1.5rem" }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <strong>Замовлення #{order.id}</strong>
-            <span
-              style={{
-                background:
-                  order.status === "Доставлено" ? "#27ae60" : "#e67e22",
-                color: "#fff",
-                borderRadius: "1rem",
-                padding: "0.15rem 0.75rem",
-                fontSize: "0.85rem",
-              }}
+    <div className="orders-list">
+      {orders.map((order) => {
+        const isOpen = openId === order.id;
+        const isDelivered = order.status === "Доставлено";
+        return (
+          <div key={order.id} className={`order-card${isOpen ? " open" : ""}`}>
+            {/* ── Header (завжди видимий, клікабельний) ── */}
+            <button
+              className="order-card-header"
+              onClick={() => setOpenId(isOpen ? null : order.id)}
+              aria-expanded={isOpen}
             >
-              {order.status}
-            </span>
-          </div>
-          <p
-            style={{
-              color: "#888",
-              fontSize: "0.85rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            {new Date(order.createdAt).toLocaleString("uk-UA")}
-          </p>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
-          >
-            {order.items.map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.95rem",
-                }}
-              >
-                <span>
-                  {item.productName} × {item.quantity}
+              <div className="order-card-left">
+                <span className="order-number">Замовлення #{order.id}</span>
+                <span className="order-date">
+                  {new Date(order.createdAt).toLocaleString("uk-UA")}
                 </span>
-                <span>{(item.price * item.quantity).toFixed(2)} ₴</span>
               </div>
-            ))}
+              <div className="order-card-right">
+                <span
+                  className="order-status"
+                  style={{ background: isDelivered ? "#27ae60" : "#e67e22" }}
+                >
+                  {order.status}
+                </span>
+                <span className="order-total-preview">
+                  {order.total.toFixed(2)} ₴
+                </span>
+                <span className={`order-chevron${isOpen ? " rotated" : ""}`}>
+                  <ChevronRight size={18} />
+                </span>
+              </div>
+            </button>
+
+            {/* ── Розкривна частина ── */}
+            {isOpen && (
+              <div className="order-card-body">
+                <div className="order-items">
+                  {order.items.map((item, i) => (
+                    <div key={i} className="order-item-row">
+                      <span className="order-item-name">
+                        {item.productName} × {item.quantity}
+                      </span>
+                      <span className="order-item-price">
+                        {(item.price * item.quantity).toFixed(2)} ₴
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="order-summary-row">
+                  <span>Сума</span>
+                  <span>{order.total.toFixed(2)} ₴</span>
+                </div>
+              </div>
+            )}
           </div>
-          <div
-            style={{
-              borderTop: "1px solid var(--border)",
-              marginTop: "0.75rem",
-              paddingTop: "0.75rem",
-              display: "flex",
-              justifyContent: "space-between",
-              fontWeight: 600,
-            }}
-          >
-            <span>Сума</span>
-            <span>{order.total.toFixed(2)} ₴</span>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { apiCreateOrder } from "@/lib/api";
@@ -15,6 +15,22 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
   const { items, updateQty, removeItem, total, clearCart } = useCartStore();
   const { token, user } = useAuthStore();
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(e.target as Node) &&
+        !(e.target as HTMLElement).closest(".icons-shopping")
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen, onClose]);
 
   async function handleConfirmOrder() {
     if (!token) {
@@ -44,6 +60,7 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
   return (
     <>
       <div
+        ref={sidebarRef}
         className={`cart-sidebar${isOpen ? " active" : ""}`}
         id="cart-sidebar"
       >

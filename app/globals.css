@@ -601,19 +601,30 @@ button.halo {
 
 .cart-sidebar {
   position: fixed;
-  top: calc(72px * var(--scale));
-  right: calc(-400px * var(--scale));
-  width: calc(340px * var(--scale));
-  height: calc(100vh - 72px * var(--scale));
+  top: calc(72px * var(--scale) + 8px);
+  right: calc(-420px * var(--scale));
+  width: calc(360px * var(--scale));
+  height: auto;
+  max-height: calc(min(560px, 80vh) * var(--scale));
   background: var(--bg-2);
-  border-left: 1px solid var(--border);
-  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border);
+  border-radius: calc(16px * var(--scale));
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+  transition:
+    right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 400;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
 }
 .cart-sidebar.active {
-  right: 0;
+  right: calc(16px * var(--scale));
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .cart-header {
@@ -1268,28 +1279,34 @@ input::placeholder {
   gap: 4px;
   position: sticky;
   top: calc(88px * var(--scale));
+  padding-top: calc(58px * var(--scale));
 }
 .account-sidebar li {
   border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: calc(13px * var(--scale)) calc(18px * var(--scale));
+  padding: calc(16px * var(--scale)) calc(18px * var(--scale));
   cursor: pointer;
   color: var(--text-2);
   font-size: calc(0.92rem * var(--scale));
   font-weight: 500;
   transition:
     background var(--tr),
-    color var(--tr);
+    color var(--tr),
+    border-color var(--tr);
   user-select: none;
 }
 .account-sidebar li:hover {
   background: var(--surface-2);
+  border-color: var(--border-2);
   color: var(--text);
 }
 .account-sidebar li.active {
-  background: var(--accent-glow);
+  background: var(--surface);
+  border-color: var(--accent);
   color: var(--accent);
   font-weight: 600;
 }
@@ -1411,6 +1428,147 @@ input::placeholder {
 .logout-item:hover {
   background: rgba(200, 50, 50, 0.06);
   border-color: rgba(200, 50, 50, 0.28);
+}
+
+/* ── Orders accordion ──────────────────────────────────────────────────────── */
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--scale));
+}
+
+.order-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color var(--tr);
+}
+.order-card:hover {
+  border-color: var(--border-2);
+}
+.order-card.open {
+  border-color: var(--accent);
+}
+
+.order-card-header {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(18px * var(--scale)) calc(22px * var(--scale));
+  gap: 16px;
+  text-align: left;
+  transition: background var(--tr);
+}
+.order-card-header:hover {
+  background: var(--surface-2);
+}
+
+.order-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.order-number {
+  font-size: calc(0.95rem * var(--scale));
+  font-weight: 700;
+  color: var(--text);
+}
+.order-date {
+  font-size: calc(0.78rem * var(--scale));
+  color: var(--text-3);
+}
+
+.order-card-right {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--scale));
+  flex-shrink: 0;
+}
+.order-status {
+  color: #fff;
+  border-radius: 2rem;
+  padding: calc(4px * var(--scale)) calc(12px * var(--scale));
+  font-size: calc(0.78rem * var(--scale));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.order-total-preview {
+  font-size: calc(0.95rem * var(--scale));
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.order-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    color var(--tr);
+}
+.order-chevron.rotated {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.order-card-body {
+  border-top: 1px solid var(--border);
+  padding: calc(16px * var(--scale)) calc(22px * var(--scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--scale));
+  animation: slideDown 0.2s ease;
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.order-items {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--scale));
+  margin-bottom: calc(8px * var(--scale));
+}
+.order-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: calc(0.9rem * var(--scale));
+}
+.order-item-name {
+  color: var(--text-2);
+}
+.order-item-price {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.order-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: calc(10px * var(--scale));
+  margin-top: calc(4px * var(--scale));
+  font-size: calc(0.95rem * var(--scale));
+  font-weight: 700;
+  color: var(--text);
+}
+.order-summary-row span:last-child {
+  color: var(--accent);
 }
 
 .modal {
@@ -1845,16 +2003,16 @@ input::placeholder {
   }
 
   .cart-sidebar {
-    width: 100%;
-    right: -100%;
-    border-radius: 0;
-    border-left: none;
-    border-top: 1px solid var(--border);
-    top: 64px;
-    height: calc(100vh - 64px);
+    width: calc(100% - 24px);
+    right: -110%;
+    border-radius: calc(14px * var(--scale));
+    border: 1px solid var(--border);
+    top: calc(64px + 8px);
+    max-height: calc(min(520px, 78vh));
+    height: auto;
   }
   .cart-sidebar.active {
-    right: 0;
+    right: 12px;
   }
 
   .account-page {
@@ -1870,6 +2028,7 @@ input::placeholder {
     gap: 8px;
     position: static;
     overflow-x: auto;
+    padding-top: 0;
   }
   .account-sidebar li {
     flex-direction: column;
@@ -1912,10 +2071,11 @@ input::placeholder {
     position: sticky !important;
     top: 88px !important;
     overflow-x: visible !important;
+    padding-top: calc(58px * var(--scale)) !important;
   }
   .account-sidebar li {
     flex-direction: row !important;
-    padding: 13px 18px !important;
+    padding: calc(16px * var(--scale)) 18px !important;
     font-size: 0.92rem !important;
     text-align: left !important;
     gap: 12px !important;

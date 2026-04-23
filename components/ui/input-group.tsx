@@ -31,11 +31,13 @@ export function InputGroupAddon({ children, align = 'inline-start' }: InputGroup
   );
 }
 
-export function InputGroupInput({ className = '', ...props }: InputGroupInputProps) {
-  return (
-    <input className={`input-group-input ${className}`} {...props} />
-  );
-}
+export const InputGroupInput = React.forwardRef<HTMLInputElement, InputGroupInputProps>(
+  function InputGroupInput({ className = '', ...props }, ref) {
+    return (
+      <input ref={ref} className={`input-group-input ${className}`} {...props} />
+    );
+  }
+);
 
 export function SearchIcon() {
   return (
