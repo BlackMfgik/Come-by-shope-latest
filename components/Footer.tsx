@@ -1,4 +1,6 @@
 // Server Component — статичний контент, не потребує 'use client'
+import { Instagram } from "lucide-react";
+
 export default function Footer() {
   return (
     <footer>
@@ -12,7 +14,7 @@ export default function Footer() {
           </p>
           <div className="footer-social">
             <a href="#">
-              <img src="/images/instagram.png" alt="instagram" />
+              <Instagram size={24} />
             </a>
           </div>
         </div>

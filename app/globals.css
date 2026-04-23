@@ -222,7 +222,9 @@ header {
   height: calc(42px * var(--scale));
   flex-shrink: 0;
   color: var(--text-2);
-  transition: background var(--tr), color var(--tr);
+  transition:
+    background var(--tr),
+    color var(--tr);
 }
 
 .icons-shopping:hover,
@@ -290,14 +292,12 @@ header > .burger img {
   height: calc(42px * var(--scale));
   transition:
     color var(--tr),
-    background var(--tr),
-    filter var(--tr);
+    background var(--tr);
   flex-shrink: 0;
-  filter: var(--icon-filter);
 }
 .theme-toggle-classic:hover {
   background: var(--surface-2);
-  filter: var(--icon-active-filter);
+  color: var(--text);
 }
 .theme-toggle-classic:active {
   background: var(--surface-3);
@@ -391,6 +391,7 @@ header > .burger img {
   padding: 0;
   min-width: 0;
   -webkit-appearance: none;
+  appearance: none;
   width: auto;
 }
 .input-group-input:focus {
@@ -1058,14 +1059,18 @@ footer {
   display: flex;
   gap: 12px;
 }
-.footer-social a img {
+.footer-social a {
+  color: var(--text-2);
+  transition: color var(--tr);
+  display: flex;
+  align-items: center;
+}
+.footer-social a svg {
   width: calc(22px * var(--scale));
   height: calc(22px * var(--scale));
-  filter: var(--icon-filter);
-  transition: filter var(--tr);
 }
-.footer-social a:hover img {
-  filter: var(--icon-active-filter);
+.footer-social a:hover {
+  color: var(--text);
 }
 .footer-contacts,
 .footer-nav {
@@ -1208,9 +1213,10 @@ input::placeholder {
   cursor: pointer;
   transition: all var(--tr);
 }
-#google-login-btn img {
+#google-login-btn svg {
   width: calc(20px * var(--scale));
   height: calc(20px * var(--scale));
+  flex-shrink: 0;
 }
 #google-login-btn:hover {
   background: var(--surface-2);
@@ -1237,16 +1243,21 @@ input::placeholder {
 
 .account-page {
   display: flex;
+  flex-direction: row;
   max-width: 1200px;
   width: min(1200px, 96%);
   margin: 0 auto;
   padding: calc(100px * var(--scale)) calc(20px * var(--scale))
     calc(60px * var(--scale));
-  gap: calc(32px * var(--scale));
+  gap: calc(40px * var(--scale));
+  align-items: flex-start;
+  box-sizing: border-box;
 }
 .account-sidebar {
-  width: calc(220px * var(--scale));
+  width: 210px;
+  min-width: 210px;
   flex-shrink: 0;
+  flex-grow: 0;
 }
 .account-sidebar ul {
   list-style: none;
@@ -1256,21 +1267,22 @@ input::placeholder {
   flex-direction: column;
   gap: 4px;
   position: sticky;
-  top: calc(80px * var(--scale));
+  top: calc(88px * var(--scale));
 }
 .account-sidebar li {
   border-radius: var(--radius);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: calc(12px * var(--scale)) calc(16px * var(--scale));
+  gap: 12px;
+  padding: calc(13px * var(--scale)) calc(18px * var(--scale));
   cursor: pointer;
   color: var(--text-2);
-  font-size: calc(0.9rem * var(--scale));
+  font-size: calc(0.92rem * var(--scale));
   font-weight: 500;
   transition:
     background var(--tr),
     color var(--tr);
+  user-select: none;
 }
 .account-sidebar li:hover {
   background: var(--surface-2);
@@ -1296,13 +1308,15 @@ input::placeholder {
 }
 
 .account-content {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
 }
 .account-content h1 {
   font-family: "Syne", sans-serif;
-  font-size: calc(1.7rem * var(--scale));
+  font-size: calc(1.75rem * var(--scale));
   font-weight: 800;
-  margin-bottom: calc(24px * var(--scale));
+  margin-bottom: calc(20px * var(--scale));
   color: var(--text);
   letter-spacing: -0.03em;
 }
@@ -1318,11 +1332,14 @@ input::placeholder {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: calc(14px * var(--scale)) calc(18px * var(--scale));
+  padding: calc(18px * var(--scale)) calc(22px * var(--scale));
   background: var(--surface);
   transition:
     background var(--tr),
     border-color var(--tr);
+  min-height: calc(68px * var(--scale));
+  width: 100%;
+  box-sizing: border-box;
 }
 .account-item:hover {
   background: var(--surface-2);
@@ -1331,7 +1348,7 @@ input::placeholder {
 .item-info {
   display: flex;
   align-items: center;
-  gap: calc(14px * var(--scale));
+  gap: calc(16px * var(--scale));
 }
 .item-info .account-item-icon {
   display: flex;
@@ -1339,20 +1356,23 @@ input::placeholder {
   justify-content: center;
   color: var(--text-3);
   transition: color var(--tr);
+  flex-shrink: 0;
 }
 .account-item:hover .item-info .account-item-icon {
   color: var(--text-2);
 }
 .item-info strong {
   display: block;
-  font-size: calc(0.88rem * var(--scale));
+  font-size: calc(0.9rem * var(--scale));
   color: var(--text);
   font-weight: 600;
+  line-height: 1.3;
 }
 .item-info p {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
   color: var(--text-2);
   font-size: calc(0.82rem * var(--scale));
+  line-height: 1.3;
 }
 
 .edit-btn {
@@ -1876,6 +1896,38 @@ input::placeholder {
     overflow-x: hidden;
   }
 }
+
+/* ── Desktop account layout — force row regardless of DPR ─────────────────── */
+@media (min-width: 769px) {
+  .account-page {
+    flex-direction: row !important;
+    padding: 100px 20px 60px;
+  }
+  .account-sidebar {
+    width: 210px !important;
+    min-width: 210px !important;
+  }
+  .account-sidebar ul {
+    flex-direction: column !important;
+    position: sticky !important;
+    top: 88px !important;
+    overflow-x: visible !important;
+  }
+  .account-sidebar li {
+    flex-direction: row !important;
+    padding: 13px 18px !important;
+    font-size: 0.92rem !important;
+    text-align: left !important;
+    gap: 12px !important;
+    white-space: normal !important;
+  }
+  .account-content {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: 0 !important;
+  }
+}
+
 @media (max-width: 480px) {
   .catalog {
     grid-template-columns: 1fr 1fr;
@@ -1902,7 +1954,7 @@ input::placeholder {
   height: 38px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1.5px solid var(--border, rgba(128,128,128,0.2));
+  border: 1.5px solid var(--border, rgba(128, 128, 128, 0.2));
   background: var(--surface-1, transparent);
   color: var(--text-2);
   font-size: 0.9rem;
@@ -1911,7 +1963,11 @@ input::placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--tr), color var(--tr), border-color var(--tr), transform 0.1s;
+  transition:
+    background var(--tr),
+    color var(--tr),
+    border-color var(--tr),
+    transform 0.1s;
 }
 
 .pagination-btn:hover:not(:disabled) {

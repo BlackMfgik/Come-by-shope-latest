@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 import { apiRegister } from "@/lib/api";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import GoogleIcon from "@/components/GoogleIcon";
 
 export default function RegistrationPage() {
   const { saveAuth } = useAuthStore();
@@ -61,7 +62,7 @@ export default function RegistrationPage() {
             </button>
             <div className="google-login">
               <button id="google-login-btn" type="button">
-                <img src="/images/google-icon.png" alt="Google" />
+                <GoogleIcon size={20} />
                 Увійти через Google
               </button>
             </div>

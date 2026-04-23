@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import GoogleIcon from "@/components/GoogleIcon";
 import { useAuthStore } from "@/store/authStore";
 import { apiLogin } from "@/lib/api";
 import Header from "@/components/Header";
@@ -61,7 +62,7 @@ export default function LoginPage() {
             </button>
             <div className="google-login">
               <button id="google-login-btn" type="button">
-                <img src="/images/google-icon.png" alt="Google" />
+                <GoogleIcon size={20} />
                 Увійти через Google
               </button>
             </div>

@@ -12,14 +12,23 @@ export const metadata: Metadata = {
 };
 
 async function getProducts(): Promise<Product[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+  const externalBase = process.env.NEXT_PUBLIC_API_URL;
+  if (externalBase) {
+    try {
+      const res = await fetch(`${externalBase}/api/products`, {
+        headers: { Accept: "application/json" },
+        next: { revalidate: 60 },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+  // 🚧 MOCK
   try {
-    const res = await fetch(`${base}/api/products`, {
-      headers: { Accept: "application/json" },
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const { db } = await import("@/lib/mockDb");
+    return db.products as Product[];
   } catch {
     return [];
   }
@@ -32,7 +41,6 @@ export default async function MenuPage({
 }) {
   const { q = "" } = await searchParams;
   const products = await getProducts();
-
   return (
     <>
       <Header />
@@ -41,7 +49,7 @@ export default async function MenuPage({
           <ProductCatalog
             initialProducts={products}
             searchQuery={q}
-            category="menu"
+            category="Меню"
           />
         </Suspense>
       </main>

@@ -57,8 +57,14 @@ function EditModal({ field, currentValue, onSave, onClose }: EditModalProps) {
   function handleSave() {
     setErr("");
     if (field === "password") {
-      if (!oldPw || !newPw || !confPw) { setErr("Всі поля пароля повинні бути заповнені."); return; }
-      if (newPw !== confPw) { setErr("Новий пароль та підтвердження не співпадають."); return; }
+      if (!oldPw || !newPw || !confPw) {
+        setErr("Всі поля пароля повинні бути заповнені.");
+        return;
+      }
+      if (newPw !== confPw) {
+        setErr("Новий пароль та підтвердження не співпадають.");
+        return;
+      }
       onSave("••••••••", { old: oldPw, newPass: newPw });
     } else {
       onSave(val.trim());
@@ -71,10 +77,14 @@ function EditModal({ field, currentValue, onSave, onClose }: EditModalProps) {
       className="modal"
       role="dialog"
       aria-modal="true"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="modal-content" role="document">
-        <button className="modal-close" aria-label="Закрити" onClick={onClose}>&times;</button>
+        <button className="modal-close" aria-label="Закрити" onClick={onClose}>
+          &times;
+        </button>
         <h3 id="modal-title">{FIELD_LABELS[field]}</h3>
 
         {field !== "password" ? (
@@ -89,20 +99,69 @@ function EditModal({ field, currentValue, onSave, onClose }: EditModalProps) {
           </div>
         ) : (
           <div id="modal-row-password">
-            <input id="modal-old" className="modal-input" type="password" placeholder="Старий пароль" value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
-            <input id="modal-new" className="modal-input" type="password" placeholder="Новий пароль" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
-            <input id="modal-confirm" className="modal-input" type="password" placeholder="Повторіть новий пароль" value={confPw} onChange={(e) => setConfPw(e.target.value)} />
-            {err && <div id="modal-error" style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}>{err}</div>}
+            <input
+              id="modal-old"
+              className="modal-input"
+              type="password"
+              placeholder="Старий пароль"
+              value={oldPw}
+              onChange={(e) => setOldPw(e.target.value)}
+            />
+            <input
+              id="modal-new"
+              className="modal-input"
+              type="password"
+              placeholder="Новий пароль"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+            />
+            <input
+              id="modal-confirm"
+              className="modal-input"
+              type="password"
+              placeholder="Повторіть новий пароль"
+              value={confPw}
+              onChange={(e) => setConfPw(e.target.value)}
+            />
+            {err && (
+              <div
+                id="modal-error"
+                style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}
+              >
+                {err}
+              </div>
+            )}
           </div>
         )}
 
         {field === "password" && (
-          <a id="modal-forgot" className="modal-forgot" href="/login" aria-label="Забули пароль?">Забули пароль?</a>
+          <a
+            id="modal-forgot"
+            className="modal-forgot"
+            href="/login"
+            aria-label="Забули пароль?"
+          >
+            Забули пароль?
+          </a>
         )}
 
         <div className="modal-buttons">
-          <button id="modal-cancel" className="btn btn-secondary" type="button" onClick={onClose}>Скасувати</button>
-          <button id="modal-save" className="btn btn-primary" type="button" onClick={handleSave}>Зберегти</button>
+          <button
+            id="modal-cancel"
+            className="btn btn-secondary"
+            type="button"
+            onClick={onClose}
+          >
+            Скасувати
+          </button>
+          <button
+            id="modal-save"
+            className="btn btn-primary"
+            type="button"
+            onClick={handleSave}
+          >
+            Зберегти
+          </button>
         </div>
       </div>
     </div>
@@ -130,31 +189,70 @@ function OrderHistory({ token }: { token: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {orders.map((order) => (
-        <div key={order.id} className="account-card" style={{ padding: "1rem 1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+        <div
+          key={order.id}
+          className="account-card"
+          style={{ padding: "1rem 1.5rem" }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "0.5rem",
+            }}
+          >
             <strong>Замовлення #{order.id}</strong>
-            <span style={{
-              background: order.status === "Доставлено" ? "#27ae60" : "#e67e22",
-              color: "#fff",
-              borderRadius: "1rem",
-              padding: "0.15rem 0.75rem",
-              fontSize: "0.85rem",
-            }}>
+            <span
+              style={{
+                background:
+                  order.status === "Доставлено" ? "#27ae60" : "#e67e22",
+                color: "#fff",
+                borderRadius: "1rem",
+                padding: "0.15rem 0.75rem",
+                fontSize: "0.85rem",
+              }}
+            >
               {order.status}
             </span>
           </div>
-          <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+          <p
+            style={{
+              color: "#888",
+              fontSize: "0.85rem",
+              marginBottom: "0.75rem",
+            }}
+          >
             {new Date(order.createdAt).toLocaleString("uk-UA")}
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+          >
             {order.items.map((item, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.95rem" }}>
-                <span>{item.productName} × {item.quantity}</span>
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.95rem",
+                }}
+              >
+                <span>
+                  {item.productName} × {item.quantity}
+                </span>
                 <span>{(item.price * item.quantity).toFixed(2)} ₴</span>
               </div>
             ))}
           </div>
-          <div style={{ borderTop: "1px solid var(--border)", marginTop: "0.75rem", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", fontWeight: 600 }}>
+          <div
+            style={{
+              borderTop: "1px solid var(--border)",
+              marginTop: "0.75rem",
+              paddingTop: "0.75rem",
+              display: "flex",
+              justifyContent: "space-between",
+              fontWeight: 600,
+            }}
+          >
             <span>Сума</span>
             <span>{order.total.toFixed(2)} ₴</span>
           </div>
@@ -175,7 +273,14 @@ interface AccountItemProps {
   isArrow?: boolean;
 }
 
-function AccountItem({ icon, label, value, field, onEdit, isArrow }: AccountItemProps) {
+function AccountItem({
+  icon,
+  label,
+  value,
+  field,
+  onEdit,
+  isArrow,
+}: AccountItemProps) {
   return (
     <div className="account-item">
       <div className="item-info">
@@ -202,7 +307,7 @@ function AccountItem({ icon, label, value, field, onEdit, isArrow }: AccountItem
 // ─── AccountPage ──────────────────────────────────────────────────────────────
 
 export default function AccountPage() {
-  const { user, token, saveAuth, logout } = useAuthStore();
+  const { user, token, saveAuth, logout, _hasHydrated } = useAuthStore();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [editField, setEditField] = useState<Field | null>(null);
@@ -215,6 +320,7 @@ export default function AccountPage() {
   const [displayPassword] = useState("");
 
   useEffect(() => {
+    if (!_hasHydrated) return; // wait for localStorage to load
     if (!user) {
       router.push("/login");
     } else {
@@ -224,22 +330,34 @@ export default function AccountPage() {
       setDisplayAddress(user.address ?? "");
       setDisplayPayment(user.payment ?? "");
     }
-  }, [user, router]);
+  }, [user, router, _hasHydrated]);
 
+  // Show nothing until hydration is complete (prevents flash redirect)
+  if (!_hasHydrated) return null;
   if (!user) return null;
 
   function getCurrentValue(field: Field): string {
     switch (field) {
-      case "name": return displayName;
-      case "email": return displayEmail;
-      case "phone": return displayPhone;
-      case "address": return displayAddress;
-      case "payment": return displayPayment;
-      case "password": return "";
+      case "name":
+        return displayName;
+      case "email":
+        return displayEmail;
+      case "phone":
+        return displayPhone;
+      case "address":
+        return displayAddress;
+      case "payment":
+        return displayPayment;
+      case "password":
+        return "";
     }
   }
 
-  async function handleSave(field: Field, val: string, extra?: { old: string; newPass: string }) {
+  async function handleSave(
+    field: Field,
+    val: string,
+    extra?: { old: string; newPass: string },
+  ) {
     try {
       if (field === "password" && extra && token) {
         await apiChangePassword(extra.old, extra.newPass, token);
@@ -247,7 +365,13 @@ export default function AccountPage() {
         const updated = await apiUpdatePayment(val, token);
         setDisplayPayment(val);
         saveAuth(token, updated);
-      } else if (token && (field === "name" || field === "email" || field === "phone" || field === "address")) {
+      } else if (
+        token &&
+        (field === "name" ||
+          field === "email" ||
+          field === "phone" ||
+          field === "address")
+      ) {
         const updated = await apiUpdateProfile({ [field]: val }, token);
         saveAuth(token, updated);
         if (field === "name") setDisplayName(val);
@@ -272,7 +396,9 @@ export default function AccountPage() {
               className={tab === "profile" ? "active" : ""}
               onClick={() => setTab("profile")}
             >
-              <span className="account-item-icon"><User size={18} /></span>
+              <span className="account-item-icon">
+                <User size={18} />
+              </span>
               <span>Обліковий запис</span>
             </li>
             <li
@@ -280,7 +406,9 @@ export default function AccountPage() {
               className={tab === "orders" ? "active" : ""}
               onClick={() => setTab("orders")}
             >
-              <span className="account-item-icon"><Package size={18} /></span>
+              <span className="account-item-icon">
+                <Package size={18} />
+              </span>
               <span>Замовлення</span>
             </li>
           </ul>
@@ -291,25 +419,73 @@ export default function AccountPage() {
             <div id="profile-content">
               <h1>Обліковий запис</h1>
               <div className="account-card">
-                <AccountItem icon={<User size={18} />}        label="Ім'я"               value={displayName}    field="name"     onEdit={setEditField} />
-                <AccountItem icon={<Mail size={18} />}        label="Адреса ел. пошти"   value={displayEmail}   field="email"    onEdit={setEditField} />
-                <AccountItem icon={<Phone size={18} />}       label="Номер телефону"     value={displayPhone}   field="phone"    onEdit={setEditField} />
-                <AccountItem icon={<Lock size={18} />}        label="Змінити пароль"     value={displayPassword} field="password" onEdit={setEditField} isArrow />
-                <AccountItem icon={<CreditCard size={18} />}  label="Способи оплати"     value={displayPayment} field="payment"  onEdit={setEditField} isArrow />
-                <AccountItem icon={<MapPin size={18} />}      label="Адреса"             value={displayAddress} field="address"  onEdit={setEditField} isArrow />
+                <AccountItem
+                  icon={<User size={18} />}
+                  label="Ім'я"
+                  value={displayName}
+                  field="name"
+                  onEdit={setEditField}
+                />
+                <AccountItem
+                  icon={<Mail size={18} />}
+                  label="Адреса ел. пошти"
+                  value={displayEmail}
+                  field="email"
+                  onEdit={setEditField}
+                />
+                <AccountItem
+                  icon={<Phone size={18} />}
+                  label="Номер телефону"
+                  value={displayPhone}
+                  field="phone"
+                  onEdit={setEditField}
+                />
+                <AccountItem
+                  icon={<Lock size={18} />}
+                  label="Змінити пароль"
+                  value={displayPassword}
+                  field="password"
+                  onEdit={setEditField}
+                  isArrow
+                />
+                <AccountItem
+                  icon={<CreditCard size={18} />}
+                  label="Способи оплати"
+                  value={displayPayment}
+                  field="payment"
+                  onEdit={setEditField}
+                  isArrow
+                />
+                <AccountItem
+                  icon={<MapPin size={18} />}
+                  label="Адреса"
+                  value={displayAddress}
+                  field="address"
+                  onEdit={setEditField}
+                  isArrow
+                />
 
                 <div className="account-item logout-item">
                   <div className="item-info">
-                    <span className="account-item-icon"><LogOut size={18} /></span>
-                    <div><strong>Вийти з акаунту</strong></div>
+                    <span className="account-item-icon">
+                      <LogOut size={18} />
+                    </span>
+                    <div>
+                      <strong>Вийти з акаунту</strong>
+                    </div>
                   </div>
                   <button
                     className="edit-btn"
                     id="logout-btn"
                     aria-label="Вийти з акаунту"
-                    onClick={() => { logout(); router.push("/login"); }}
+                    onClick={() => {
+                      logout();
+                      router.push("/login");
+                    }}
                   >
-                    <span className="account-item-icon"><ChevronRight size={18} /></span>
+                    <span className="account-item-icon">
+                      <ChevronRight size={18} />
+                    </span>
                   </button>
                 </div>
               </div>
