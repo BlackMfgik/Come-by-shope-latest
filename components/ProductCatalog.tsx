@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import {
@@ -11,7 +11,9 @@ import {
   apiDeleteProduct,
 } from "@/lib/api";
 import type { Product } from "@/types";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+
+const PAGE_SIZE = 100;
 
 interface Props {
   initialProducts: Product[];
@@ -27,10 +29,13 @@ export default function ProductCatalog({
   const { user, token } = useAuthStore();
   const { addItem } = useCartStore();
 
-  // Ініціалізуємо зі SSR-даних — жодного useEffect на старті!
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => { setPage(1); }, [searchQuery, category]);
 
   const [adminForm, setAdminForm] = useState({
     name: "",
@@ -124,6 +129,19 @@ export default function ProductCatalog({
     return matchesSearch && matchesCategory;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  function scrollToTop() {
+    document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function goToPage(p: number) {
+    setPage(p);
+    scrollToTop();
+  }
+
   return (
     <>
       {isAdmin && (
@@ -211,7 +229,7 @@ export default function ProductCatalog({
             Товарів поки немає
           </p>
         )}
-        {filtered.map((p) => (
+        {paginated.map((p) => (
           <div className="product-card" data-id={p.id} key={p.id}>
             <div className="product-img">
               <img src={p.image || "/images/no-image.png"} alt={p.name} />
@@ -264,6 +282,47 @@ export default function ProductCatalog({
           </div>
         ))}
       </section>
+
+      {/* ── Pagination ── */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination-btn"
+            onClick={() => goToPage(safePage - 1)}
+            disabled={safePage === 1}
+            aria-label="Попередня сторінка"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              className={`pagination-btn${p === safePage ? " active" : ""}`}
+              onClick={() => goToPage(p)}
+              aria-label={`Сторінка ${p}`}
+              aria-current={p === safePage ? "page" : undefined}
+            >
+              {p}
+            </button>
+          ))}
+
+          <button
+            className="pagination-btn"
+            onClick={() => goToPage(safePage + 1)}
+            disabled={safePage === totalPages}
+            aria-label="Наступна сторінка"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <p className="pagination-info">
+          Показано {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} з {filtered.length} товарів
+        </p>
+      )}
     </>
   );
 }

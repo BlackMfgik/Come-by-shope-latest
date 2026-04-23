@@ -150,8 +150,8 @@ export default function Header() {
               <span
                 style={{
                   position: "absolute",
-                  top: 0,
-                  right: 0,
+                  top: 4,
+                  right: 4,
                   background: "#009956",
                   color: "#fff",
                   borderRadius: "50%",
@@ -162,6 +162,7 @@ export default function Header() {
                   alignItems: "center",
                   justifyContent: "center",
                   fontWeight: 700,
+                  pointerEvents: "none",
                 }}
               >
                 {cartCount}
@@ -169,11 +170,14 @@ export default function Header() {
             )}
           </div>
 
-          <div className="icons-user">
-            <Link href={user ? "/account" : "/login"} id="user-link">
-              <User size={24} />
-            </Link>
-          </div>
+          <Link
+            className="icons-user"
+            href={user ? "/account" : "/login"}
+            id="user-link"
+            aria-label="Акаунт"
+          >
+            <User size={24} />
+          </Link>
 
           <ThemeToggle />
         </div>
