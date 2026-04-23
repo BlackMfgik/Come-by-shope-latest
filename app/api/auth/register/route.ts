@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/mockDb";
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json();
+  const { email, password, name } = await req.json();
   if (!email || !password) {
     return NextResponse.json(
       { error: "Email і пароль обов'язкові" },
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     id: db._nextUserId++,
     email,
     password,
-    name: "",
+    name: name || "",
     phone: "",
     address: "",
     payment: "",

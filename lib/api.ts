@@ -40,11 +40,12 @@ export async function apiLogin(
 export async function apiRegister(
   email: string,
   password: string,
+  name: string,
 ): Promise<AuthPayload> {
   const res = await fetch(`${BASE}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, name }),
   });
   return handleResponse<AuthPayload>(res);
 }

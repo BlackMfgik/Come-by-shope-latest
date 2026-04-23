@@ -1137,23 +1137,145 @@ footer {
   justify-content: center;
   align-items: center;
   flex: 1;
-  padding: calc(80px * var(--scale)) 20px 40px;
+  padding: calc(100px * var(--scale)) 20px calc(60px * var(--scale));
 }
 .register-box {
   width: 100%;
-  max-width: calc(400px * var(--scale));
+  max-width: calc(440px * var(--scale));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: calc(40px * var(--scale)) calc(36px * var(--scale));
   box-shadow: var(--shadow-lg);
 }
-.register-box form {
+
+.register-title {
+  font-family: "Syne", sans-serif;
+  font-size: calc(1.5rem * var(--scale));
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.register-subtitle {
+  font-size: calc(0.85rem * var(--scale));
+  color: var(--text-3);
+  margin: 0 0 calc(24px * var(--scale));
+}
+
+.register-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-top: 0;
-  justify-content: flex-start;
+  gap: calc(16px * var(--scale));
+}
+
+.register-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.register-field label {
+  font-size: calc(0.82rem * var(--scale));
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.register-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.register-input-wrap input {
+  padding-left: calc(38px * var(--scale));
+  padding-right: calc(38px * var(--scale));
+}
+.register-icon {
+  position: absolute;
+  left: calc(12px * var(--scale));
+  color: var(--text-3);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.register-eye {
+  position: absolute;
+  right: calc(10px * var(--scale));
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  transition: color var(--tr);
+}
+.register-eye:hover {
+  color: var(--text);
+}
+
+.register-hint {
+  font-size: calc(0.78rem * var(--scale));
+}
+.register-hint.error {
+  color: #e74c3c;
+}
+.register-hint.success {
+  color: #27ae60;
+}
+
+.register-error {
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  border-radius: var(--radius-sm);
+  color: #e74c3c;
+  font-size: calc(0.85rem * var(--scale));
+  padding: calc(10px * var(--scale)) calc(14px * var(--scale));
+  margin: 0;
+}
+
+/* password strength */
+.pw-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pw-bars {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.pw-bar {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+.pw-label {
+  font-size: calc(0.75rem * var(--scale));
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+
+.register-links {
+  margin-top: calc(20px * var(--scale));
+  text-align: center;
+  font-size: calc(0.85rem * var(--scale));
+  color: var(--text-3);
+}
+.login-links-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+.register-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity var(--tr);
+}
+.register-links a:hover {
+  opacity: 0.8;
 }
 
 input {
