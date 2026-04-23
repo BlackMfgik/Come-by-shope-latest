@@ -19,12 +19,14 @@ interface Props {
   initialProducts: Product[];
   searchQuery?: string;
   category?: string;
+  limit?: number;
 }
 
 export default function ProductCatalog({
   initialProducts,
   searchQuery = "",
   category,
+  limit,
 }: Props) {
   const { user, token } = useAuthStore();
   const { addItem } = useCartStore();
@@ -131,7 +133,8 @@ export default function ProductCatalog({
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated = (filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE))
+    .slice(0, limit ?? undefined);
 
   function scrollToTop() {
     document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
