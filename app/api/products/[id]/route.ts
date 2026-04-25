@@ -35,6 +35,29 @@ export async function PUT(
   return NextResponse.json(db.products[idx]);
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = req.headers.get("authorization");
+  const token = auth?.replace("Bearer ", "") ?? "";
+  const user = db.getUserFromToken(token);
+  if (!user?.admin)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const idx = db.products.findIndex((p) => p.id === Number(id));
+  if (idx === -1)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const body = await req.json();
+  // Only allow patching the `hidden` field via PATCH
+  if (typeof body.hidden === "boolean") {
+    (db.products[idx] as typeof db.products[number] & { hidden?: boolean }).hidden = body.hidden;
+  }
+  return NextResponse.json(db.products[idx]);
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

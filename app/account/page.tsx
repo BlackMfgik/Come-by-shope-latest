@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { useToastStore } from "@/store/toastStore";
@@ -13,8 +13,11 @@ import {
 import type { Order } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import OrderDetailsModal from "@/components/modals/OrderDetailsModal";
 import EmptyState from "@/components/ui/EmptyState";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import ChangeEmailModal from "@/components/modals/ChangeEmailModal";
+import ConfirmPasswordModal from "@/components/modals/ConfirmPasswordModal";
+import ForgotPasswordModal from "@/components/modals/ForgotPasswordModal";
 import {
   User,
   Mail,
@@ -25,6 +28,7 @@ import {
   LogOut,
   ShoppingBag,
   ChevronRight,
+  ChevronDown,
   Pencil,
   Package,
   ClipboardList,
@@ -49,14 +53,16 @@ interface EditModalProps {
   currentValue: string;
   onSave: (val: string, extra?: { old: string; newPass: string }) => void;
   onClose: () => void;
+  onForgotPassword?: () => void;
 }
 
-function EditModal({ field, currentValue, onSave, onClose }: EditModalProps) {
+function EditModal({ field, currentValue, onSave, onClose, onForgotPassword }: EditModalProps) {
   const [val, setVal] = useState(currentValue);
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confPw, setConfPw] = useState("");
   const [err, setErr] = useState("");
+  const editContainerRef = useRef<HTMLDivElement>(null);
 
   function handleSave() {
     setErr("");
@@ -91,81 +97,106 @@ function EditModal({ field, currentValue, onSave, onClose }: EditModalProps) {
         </button>
         <h3 id="modal-title">{FIELD_LABELS[field]}</h3>
 
-        {field !== "password" ? (
-          <div id="modal-row-single">
-            <input
-              id="modal-input"
-              className="modal-input"
-              type="text"
-              value={val}
-              onChange={(e) => setVal(e.target.value)}
-            />
-          </div>
-        ) : (
-          <div id="modal-row-password">
-            <input
-              id="modal-old"
-              className="modal-input"
-              type="password"
-              placeholder="Старий пароль"
-              value={oldPw}
-              onChange={(e) => setOldPw(e.target.value)}
-            />
-            <input
-              id="modal-new"
-              className="modal-input"
-              type="password"
-              placeholder="Новий пароль"
-              value={newPw}
-              onChange={(e) => setNewPw(e.target.value)}
-            />
-            <input
-              id="modal-confirm"
-              className="modal-input"
-              type="password"
-              placeholder="Повторіть новий пароль"
-              value={confPw}
-              onChange={(e) => setConfPw(e.target.value)}
-            />
-            {err && (
-              <div
-                id="modal-error"
-                style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}
-              >
-                {err}
-              </div>
-            )}
-          </div>
-        )}
+        <div ref={editContainerRef}>
+          {field === "address" ? (
+            <div id="modal-row-single">
+              <AddressAutocomplete
+                value={val}
+                onChange={setVal}
+                placeholder="Введіть адресу доставки"
+                id="modal-address-input"
+                className="modal-input"
+              />
+            </div>
+          ) : field !== "password" ? (
+            <div id="modal-row-single">
+              <input
+                id="modal-input"
+                className="modal-input"
+                type="text"
+                value={val}
+                onChange={(e) => setVal(e.target.value)}
+                onBlur={(e) => {
+                  if (!editContainerRef.current?.contains(e.relatedTarget as Node)) {
+                    // don't close, user is still inside modal
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div id="modal-row-password">
+              <input
+                id="modal-old"
+                className="modal-input"
+                type="password"
+                placeholder="Старий пароль"
+                value={oldPw}
+                onChange={(e) => setOldPw(e.target.value)}
+              />
+              <input
+                id="modal-new"
+                className="modal-input"
+                type="password"
+                placeholder="Новий пароль"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+              />
+              <input
+                id="modal-confirm"
+                className="modal-input"
+                type="password"
+                placeholder="Повторіть новий пароль"
+                value={confPw}
+                onChange={(e) => setConfPw(e.target.value)}
+              />
+              {err && (
+                <div
+                  id="modal-error"
+                  style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}
+                >
+                  {err}
+                </div>
+              )}
+            </div>
+          )}
 
-        {field === "password" && (
-          <a
-            id="modal-forgot"
-            className="modal-forgot"
-            href="/login"
-            aria-label="Забули пароль?"
-          >
-            Забули пароль?
-          </a>
-        )}
+          {field === "password" && (
+            <button
+              id="modal-forgot"
+              className="modal-forgot forgot-link"
+              type="button"
+              aria-label="Забули пароль?"
+              style={{ marginTop: 8, display: "block" }}
+              onClick={() => {
+                onClose();
+                onForgotPassword?.();
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              Забули пароль?
+            </button>
+          )}
 
-        <div className="modal-buttons">
-          <button
-            id="modal-cancel"
-            className="btn btn-secondary"
-            type="button"
-            onClick={onClose}
-          >
-            Скасувати
-          </button>
-          <button
-            id="modal-save"
-            className="btn btn-primary"
-            type="button"
-            onClick={handleSave}
-          >
-            Зберегти
-          </button>
+          <div className="modal-buttons">
+            <button
+              id="modal-cancel"
+              className="btn btn-secondary"
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onClose}
+            >
+              Скасувати
+            </button>
+            <button
+              id="modal-save"
+              className="btn btn-primary"
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleSave}
+            >
+              Зберегти
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -178,7 +209,7 @@ function OrderHistory({ token }: { token: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [openOrderId, setOpenOrderId] = useState<number | null>(null);
 
   useEffect(() => {
     apiGetMyOrders(token)
@@ -207,16 +238,21 @@ function OrderHistory({ token }: { token: string }) {
     );
 
   return (
-    <>
-      <div className="orders-list">
-        {orders.map((order) => {
-          const isDelivered =
-            order.status === "Доставлено" || order.status === "delivered";
-          return (
+    <div className="orders-list">
+      {orders.map((order) => {
+        const isDelivered =
+          order.status === "Доставлено" || order.status === "delivered";
+        const isOpen = openOrderId === order.id;
+
+        return (
+          <div
+            key={order.id}
+            className={`order-card${isOpen ? " open" : ""}`}
+          >
             <button
-              key={order.id}
-              className="order-card order-card-clickable"
-              onClick={() => setSelectedOrder(order)}
+              className="order-card-header"
+              onClick={() => setOpenOrderId(isOpen ? null : order.id)}
+              aria-expanded={isOpen}
               aria-label={`Деталі замовлення #${order.id}`}
             >
               <div className="order-card-left">
@@ -235,22 +271,47 @@ function OrderHistory({ token }: { token: string }) {
                 <span className="order-total-preview">
                   {order.total.toFixed(2)} ₴
                 </span>
-                <span className="order-chevron">
-                  <ChevronRight size={18} />
+                <span className={`order-chevron${isOpen ? " rotated" : ""}`}>
+                  <ChevronDown size={18} />
                 </span>
               </div>
             </button>
-          );
-        })}
-      </div>
 
-      {selectedOrder && (
-        <OrderDetailsModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-        />
-      )}
-    </>
+            {isOpen && (
+              <div className="order-card-body">
+                <div className="order-items">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="order-item-row">
+                      <span className="order-item-name">
+                        {item.productName} × {item.quantity}
+                      </span>
+                      <span className="order-item-price">
+                        {(item.price * item.quantity).toFixed(2)} ₴
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="order-summary-row">
+                  <span>Разом:</span>
+                  <span>{order.total.toFixed(2)} ₴</span>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <span
+                    className="order-status"
+                    style={{
+                      background: isDelivered ? "#27ae60" : "#e67e22",
+                      display: "inline-block",
+                    }}
+                  >
+                    {order.status}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -274,7 +335,14 @@ function AccountItem({
   isArrow,
 }: AccountItemProps) {
   return (
-    <div className="account-item">
+    <div
+      className="account-item"
+      onClick={() => onEdit(field)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onEdit(field)}
+      aria-label={`Редагувати ${label}`}
+    >
       <div className="item-info">
         <span className="account-item-icon">{icon}</span>
         <div>
@@ -282,16 +350,9 @@ function AccountItem({
           {value && <p>{value}</p>}
         </div>
       </div>
-      <button
-        className="edit-btn"
-        data-field={field}
-        aria-label={`Редагувати ${label}`}
-        onClick={() => onEdit(field)}
-      >
-        <span className="account-item-icon">
-          {isArrow ? <ChevronRight size={18} /> : <Pencil size={16} />}
-        </span>
-      </button>
+      <span className="account-item-icon" style={{ color: "var(--text-3)" }}>
+        {isArrow ? <ChevronRight size={18} /> : <Pencil size={16} />}
+      </span>
     </div>
   );
 }
@@ -305,15 +366,21 @@ export default function AccountPage() {
   const [tab, setTab] = useState<Tab>("profile");
   const [editField, setEditField] = useState<Field | null>(null);
 
+  // Task 2 — change email modal
+  const [changeEmailOpen, setChangeEmailOpen] = useState(false);
+  // Task 3 — confirm password before payment edit
+  const [confirmPwOpen, setConfirmPwOpen] = useState(false);
+  // Task 5 — forgot password modal
+  const [forgotOpen, setForgotOpen] = useState(false);
+
   const [displayName, setDisplayName] = useState("");
   const [displayEmail, setDisplayEmail] = useState("");
   const [displayPhone, setDisplayPhone] = useState("");
   const [displayAddress, setDisplayAddress] = useState("");
   const [displayPayment, setDisplayPayment] = useState("");
-  const [displayPassword] = useState("");
 
   useEffect(() => {
-    if (!_hasHydrated) return; // wait for localStorage to load
+    if (!_hasHydrated) return;
     if (!user) {
       router.push("/login");
     } else {
@@ -325,24 +392,41 @@ export default function AccountPage() {
     }
   }, [user, router, _hasHydrated]);
 
-  // Show nothing until hydration is complete (prevents flash redirect)
   if (!_hasHydrated) return null;
   if (!user) return null;
 
+  // Task 3 — masked payment display
+  function maskedPayment(raw: string): string {
+    if (!raw) return "Не вказано";
+    // If already masked or has last 4 digits
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length >= 4) {
+      return "**** **** **** " + digits.slice(-4);
+    }
+    return raw;
+  }
+
   function getCurrentValue(field: Field): string {
     switch (field) {
-      case "name":
-        return displayName;
-      case "email":
-        return displayEmail;
-      case "phone":
-        return displayPhone;
-      case "address":
-        return displayAddress;
-      case "payment":
-        return displayPayment;
-      case "password":
-        return "";
+      case "name": return displayName;
+      case "email": return displayEmail;
+      case "phone": return displayPhone;
+      case "address": return displayAddress;
+      case "payment": return displayPayment;
+      case "password": return "";
+    }
+  }
+
+  // Task 6 — clicking any field dispatches to correct handler
+  function handleEditField(field: Field) {
+    if (field === "email") {
+      // Task 2 — open ChangeEmailModal instead of inline
+      setChangeEmailOpen(true);
+    } else if (field === "payment") {
+      // Task 3 — confirm password before editing payment
+      setConfirmPwOpen(true);
+    } else {
+      setEditField(field);
     }
   }
 
@@ -362,15 +446,11 @@ export default function AccountPage() {
         toast("Платіжні дані збережено");
       } else if (
         token &&
-        (field === "name" ||
-          field === "email" ||
-          field === "phone" ||
-          field === "address")
+        (field === "name" || field === "phone" || field === "address")
       ) {
         const updated = await apiUpdateProfile({ [field]: val }, token);
         saveAuth(token, updated);
         if (field === "name") setDisplayName(val);
-        if (field === "email") setDisplayEmail(val);
         if (field === "phone") setDisplayPhone(val);
         if (field === "address") setDisplayAddress(val);
         toast("Профіль оновлено");
@@ -423,36 +503,36 @@ export default function AccountPage() {
                   label="Ім'я"
                   value={displayName}
                   field="name"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                 />
                 <AccountItem
                   icon={<Mail size={18} />}
                   label="Адреса ел. пошти"
                   value={displayEmail}
                   field="email"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                 />
                 <AccountItem
                   icon={<Phone size={18} />}
                   label="Номер телефону"
                   value={displayPhone}
                   field="phone"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                 />
                 <AccountItem
                   icon={<Lock size={18} />}
                   label="Змінити пароль"
-                  value={displayPassword}
+                  value=""
                   field="password"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                   isArrow
                 />
                 <AccountItem
                   icon={<CreditCard size={18} />}
                   label="Способи оплати"
-                  value={displayPayment}
+                  value={maskedPayment(displayPayment)}
                   field="payment"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                   isArrow
                 />
                 <AccountItem
@@ -460,11 +540,18 @@ export default function AccountPage() {
                   label="Адреса"
                   value={displayAddress}
                   field="address"
-                  onEdit={setEditField}
+                  onEdit={handleEditField}
                   isArrow
                 />
 
-                <div className="account-item logout-item">
+                <div
+                  className="account-item logout-item"
+                  onClick={() => { logout(); router.push("/login"); }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && (logout(), router.push("/login"))}
+                  aria-label="Вийти з акаунту"
+                >
                   <div className="item-info">
                     <span className="account-item-icon">
                       <LogOut size={18} />
@@ -473,19 +560,9 @@ export default function AccountPage() {
                       <strong>Вийти з акаунту</strong>
                     </div>
                   </div>
-                  <button
-                    className="edit-btn"
-                    id="logout-btn"
-                    aria-label="Вийти з акаунту"
-                    onClick={() => {
-                      logout();
-                      router.push("/login");
-                    }}
-                  >
-                    <span className="account-item-icon">
-                      <ChevronRight size={18} />
-                    </span>
-                  </button>
+                  <span className="account-item-icon" style={{ color: "var(--text-3)" }}>
+                    <ChevronRight size={18} />
+                  </span>
                 </div>
               </div>
             </div>
@@ -500,13 +577,44 @@ export default function AccountPage() {
         </section>
       </main>
 
+      {/* Task 4 fix: only non-email/payment fields use EditModal with blur fix */}
       {editField && (
         <EditModal
           field={editField}
           currentValue={getCurrentValue(editField)}
           onSave={(val, extra) => handleSave(editField, val, extra)}
           onClose={() => setEditField(null)}
+          onForgotPassword={() => setForgotOpen(true)}
         />
+      )}
+
+      {/* Task 2 — change email modal */}
+      {changeEmailOpen && token && (
+        <ChangeEmailModal
+          token={token}
+          onClose={() => {
+            setChangeEmailOpen(false);
+            // Refresh email from store
+            if (user) setDisplayEmail(user.email ?? "");
+          }}
+        />
+      )}
+
+      {/* Task 3 — confirm password before payment edit */}
+      {confirmPwOpen && token && (
+        <ConfirmPasswordModal
+          token={token}
+          onSuccess={() => {
+            setConfirmPwOpen(false);
+            setEditField("payment");
+          }}
+          onClose={() => setConfirmPwOpen(false)}
+        />
+      )}
+
+      {/* Task 5 — forgot password modal */}
+      {forgotOpen && (
+        <ForgotPasswordModal onClose={() => setForgotOpen(false)} />
       )}
 
       <Footer />

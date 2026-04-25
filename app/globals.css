@@ -2830,3 +2830,139 @@ input::placeholder {
   color: var(--accent, #009956);
   transform: translateX(3px);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ── NEW STYLES (Tasks 6, 9, 12) ──────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Task 6: Clickable account rows ──────────────────────────────────────── */
+.account-item {
+  cursor: pointer;
+  transition: background var(--tr, 0.2s);
+}
+.account-item:hover {
+  background: var(--surface-2, rgba(128, 128, 128, 0.05));
+}
+.account-item:focus-visible {
+  outline: 2px solid var(--accent, #009956);
+  outline-offset: -2px;
+  border-radius: var(--radius, 12px);
+}
+
+/* ── Task 9: Admin card overlay ──────────────────────────────────────────── */
+.admin-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+  animation: fadeIn 0.15s ease;
+}
+
+.admin-overlay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  min-width: 130px;
+  justify-content: center;
+}
+.admin-overlay-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(1.03);
+}
+.admin-overlay-btn--danger:hover {
+  background: rgba(220, 53, 69, 0.55);
+}
+
+/* ── Task 9: Hidden product card (non-admin view) ─────────────────────────── */
+.product-card--hidden {
+  opacity: 0.55;
+}
+.product-card--hidden .add-btn {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.product-hidden-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  z-index: 5;
+  pointer-events: none;
+  letter-spacing: 0.01em;
+}
+
+/* ── Task 12: Active nav link ─────────────────────────────────────────────── */
+.nav-center a.nav-link-active {
+  color: var(--accent, #009956);
+  font-weight: 600;
+  background: var(--surface-2, rgba(0, 153, 86, 0.06));
+}
+
+/* ── Task 1: Address autocomplete dropdown ────────────────────────────────── */
+.address-autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.address-autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface-1, #1a1a1a);
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 100;
+  overflow: hidden;
+  animation: fadeIn 0.15s ease;
+}
+
+.address-autocomplete-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--text, inherit);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.08));
+}
+.address-autocomplete-item:last-child {
+  border-bottom: none;
+}
+.address-autocomplete-item:hover {
+  background: var(--surface-2, rgba(128, 128, 128, 0.07));
+}
+
+.address-autocomplete-loading {
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: var(--text-3, #888);
+}

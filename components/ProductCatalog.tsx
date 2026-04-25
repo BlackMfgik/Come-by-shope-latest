@@ -10,16 +10,17 @@ import {
   apiCreateProduct,
   apiUpdateProduct,
   apiDeleteProduct,
+  apiToggleProductVisibility,
 } from "@/lib/api";
 import type { Product } from "@/types";
-import { Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
 import CategoryFilter from "@/components/ui/CategoryFilter";
 import ProductQuickViewModal from "@/components/modals/ProductQuickViewModal";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 8;
 
 interface Props {
   initialProducts: Product[];
@@ -38,15 +39,22 @@ export default function ProductCatalog({
   const { addItem } = useCartStore();
   const { toast } = useToastStore();
 
+  // Task 11: load all products on mount to fix pagination
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [activeCategory, setActiveCategory] = useState(category ?? "");
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(
-    null,
-  );
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  // Task 9: overlay per card
+  const [overlayProductId, setOverlayProductId] = useState<number | null>(null);
+
+  // Task 11: load full product list on mount (fixes pagination slicing bug)
+  useEffect(() => {
+    loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -100,19 +108,10 @@ export default function ProductCatalog({
         await apiCreateProduct(payload, token);
         toast("Товар додано ✓");
       }
-      setAdminForm({
-        name: "",
-        description: "",
-        weight: "",
-        price: "",
-        imageName: "",
-      });
+      setAdminForm({ name: "", description: "", weight: "", price: "", imageName: "" });
       await loadProducts();
     } catch (err: unknown) {
-      toast(
-        err instanceof Error ? err.message : "Помилка при збереженні товару",
-        "error",
-      );
+      toast(err instanceof Error ? err.message : "Помилка при збереженні товару", "error");
     }
   }
 
@@ -127,9 +126,7 @@ export default function ProductCatalog({
         imageName: p.imageName ?? "",
       });
       setEditingId(id);
-      document
-        .getElementById("admin-panel")
-        ?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("admin-panel")?.scrollIntoView({ behavior: "smooth" });
     } catch {
       toast("Не вдалося завантажити товар", "error");
     }
@@ -144,6 +141,20 @@ export default function ProductCatalog({
     } catch {
       toast("Не вдалося видалити товар", "error");
     }
+  }
+
+  // Task 9: toggle visibility
+  async function handleToggleVisibility(p: Product) {
+    if (!token) return;
+    const newHidden = !p.hidden;
+    try {
+      const updated = await apiToggleProductVisibility(p.id, newHidden, token);
+      setProducts((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
+      toast(newHidden ? "Товар приховано 👁️" : "Товар показано 👁️");
+    } catch {
+      toast("Не вдалося змінити видимість", "error");
+    }
+    setOverlayProductId(null);
   }
 
   const isAdmin = user?.admin;
@@ -162,9 +173,7 @@ export default function ProductCatalog({
     .slice(0, limit ?? undefined);
 
   function scrollToTop() {
-    document
-      .getElementById("catalog")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function goToPage(p: number) {
@@ -183,26 +192,20 @@ export default function ProductCatalog({
               placeholder="Назва товару"
               required
               value={adminForm.name}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, name: e.target.value }))
-              }
+              onChange={(e) => setAdminForm((f) => ({ ...f, name: e.target.value }))}
             />
             <input
               id="admin-product-description"
               placeholder="Опис товару"
               value={adminForm.description}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, description: e.target.value }))
-              }
+              onChange={(e) => setAdminForm((f) => ({ ...f, description: e.target.value }))}
             />
             <input
               id="admin-product-weight"
               type="text"
               placeholder="Вага"
               value={adminForm.weight}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, weight: e.target.value }))
-              }
+              onChange={(e) => setAdminForm((f) => ({ ...f, weight: e.target.value }))}
             />
             <input
               id="admin-product-price"
@@ -211,18 +214,14 @@ export default function ProductCatalog({
               placeholder="Ціна"
               required
               value={adminForm.price}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, price: e.target.value }))
-              }
+              onChange={(e) => setAdminForm((f) => ({ ...f, price: e.target.value }))}
             />
             <input
               id="admin-product-image"
               type="text"
               placeholder="Назва зображення (без формату)"
               value={adminForm.imageName}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, imageName: e.target.value }))
-              }
+              onChange={(e) => setAdminForm((f) => ({ ...f, imageName: e.target.value }))}
             />
             <button className="add-btn" type="submit">
               {editingId != null ? "Зберегти зміни" : "Додати товар"}
@@ -232,13 +231,7 @@ export default function ProductCatalog({
                 type="button"
                 onClick={() => {
                   setEditingId(null);
-                  setAdminForm({
-                    name: "",
-                    description: "",
-                    weight: "",
-                    price: "",
-                    imageName: "",
-                  });
+                  setAdminForm({ name: "", description: "", weight: "", price: "", imageName: "" });
                 }}
                 style={{ marginLeft: 8 }}
               >
@@ -258,8 +251,7 @@ export default function ProductCatalog({
       )}
 
       <section className="catalog" id="catalog">
-        {loading &&
-          Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+        {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
         {!loading && error && <p className="error-wrap">{error}</p>}
 
@@ -277,72 +269,108 @@ export default function ProductCatalog({
         )}
 
         {!loading &&
-          paginated.map((p) => (
-            <div
-              className="product-card"
-              data-id={p.id}
-              key={p.id}
-              onClick={() => setQuickViewProduct(p)}
-              style={{ cursor: "pointer" }}
-            >
-              <div className="product-img">
-                <img src={p.image || "/images/no-image.png"} alt={p.name} />
-              </div>
-              <div className="product-info">
-                <div>
-                  <b>{p.name}</b>
-                  <div className="product-weight">{p.weight}</div>
+          paginated.map((p) => {
+            const isHidden = p.hidden === true;
+            const showOverlay = isAdmin && overlayProductId === p.id;
+
+            return (
+              <div
+                className={`product-card${isHidden && !isAdmin ? " product-card--hidden" : ""}`}
+                data-id={p.id}
+                key={p.id}
+                style={{ position: "relative", cursor: "pointer" }}
+                onClick={() => {
+                  if (isAdmin) {
+                    setOverlayProductId(overlayProductId === p.id ? null : p.id);
+                  } else {
+                    setQuickViewProduct(p);
+                  }
+                }}
+              >
+                {/* Task 9: "unavailable" badge for hidden products (non-admin) */}
+                {isHidden && !isAdmin && (
+                  <div className="product-hidden-badge">Немає в наявності</div>
+                )}
+
+                <div className="product-img">
+                  <img src={p.image || "/images/no-image.png"} alt={p.name} />
                 </div>
-                <div className="product-bottom">
-                  <span className="product-price">
-                    {Number(p.price).toFixed(2)} ₴
-                  </span>
-                  <button
-                    className="add-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addItem(
-                        p.name,
-                        p.price,
-                        p.image || "/images/no-image.png",
-                        p.description || "",
-                        p.id,
-                      );
-                      toast(`${p.name} додано до кошика 🛒`);
-                    }}
-                  >
-                    <span>+</span> Додати
-                  </button>
-                </div>
-                {isAdmin && (
-                  <div className="admin-controls admin-only">
+                <div className="product-info">
+                  <div>
+                    <b>{p.name}</b>
+                    <div className="product-weight">{p.weight}</div>
+                  </div>
+                  <div className="product-bottom">
+                    <span className="product-price">
+                      {Number(p.price).toFixed(2)} ₴
+                    </span>
                     <button
-                      className="admin-controls-btn admin-edit-btn"
-                      type="button"
-                      title="Редагувати"
+                      className="add-btn"
+                      style={isHidden && !isAdmin ? { pointerEvents: "none", opacity: 0.4 } : undefined}
+                      disabled={isHidden && !isAdmin}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (isAdmin) return; // admin click handled by card
+                        addItem(
+                          p.name,
+                          p.price,
+                          p.image || "/images/no-image.png",
+                          p.description || "",
+                          p.id,
+                        );
+                        toast(`${p.name} додано до кошика 🛒`);
+                      }}
+                    >
+                      <span>+</span> Додати
+                    </button>
+                  </div>
+                </div>
+
+                {/* Task 9: Admin overlay */}
+                {showOverlay && (
+                  <div
+                    className="admin-card-overlay"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) setOverlayProductId(null);
+                    }}
+                  >
+                    <button
+                      className="admin-overlay-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOverlayProductId(null);
                         handleEdit(p.id);
                       }}
                     >
-                      <Pencil size={18} />
+                      ✏️ Змінити
                     </button>
                     <button
-                      className="admin-controls-btn admin-delete-btn"
+                      className="admin-overlay-btn admin-overlay-btn--danger"
                       type="button"
-                      title="Видалити"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setOverlayProductId(null);
                         setDeleteTarget(p);
                       }}
                     >
-                      <Trash2 size={18} />
+                      🗑️ Видалити
+                    </button>
+                    <button
+                      className="admin-overlay-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleVisibility(p);
+                      }}
+                    >
+                      {isHidden ? <><Eye size={14} /> Показати</> : <><EyeOff size={14} /> Приховати</>}
                     </button>
                   </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
       </section>
 
       {/* ── Pagination ── */}
@@ -388,7 +416,7 @@ export default function ProductCatalog({
         </p>
       )}
 
-      {quickViewProduct && (
+      {!isAdmin && quickViewProduct && (
         <ProductQuickViewModal
           product={quickViewProduct}
           onClose={() => setQuickViewProduct(null)}

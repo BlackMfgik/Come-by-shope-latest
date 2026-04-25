@@ -46,11 +46,8 @@ export default async function MenuPage({
       <Header />
       <main>
         <Suspense fallback={<Loading />}>
-          <ProductCatalog
-            initialProducts={products}
-            searchQuery={q}
-            category="Меню"
-          />
+          {/* Task 8: no hardcoded category — CategoryFilter handles it */}
+          <ProductCatalog initialProducts={products} searchQuery={q} />
         </Suspense>
       </main>
       <Footer />

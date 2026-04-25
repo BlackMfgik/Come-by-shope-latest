@@ -46,11 +46,8 @@ export default async function ComboPage({
       <Header />
       <main>
         <Suspense fallback={<Loading />}>
-          <ProductCatalog
-            initialProducts={products}
-            searchQuery={q}
-            category="Комбо"
-          />
+          {/* Task 8: no hardcoded category — CategoryFilter handles it */}
+          <ProductCatalog initialProducts={products} searchQuery={q} />
         </Suspense>
       </main>
       <Footer />

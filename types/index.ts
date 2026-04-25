@@ -22,6 +22,7 @@ export interface Product {
   image?: string;
   imageName?: string;
   category?: string;
+  hidden?: boolean;
 }
 
 export interface CartItem {

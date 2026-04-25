@@ -17,12 +17,23 @@ import {
 
 const CART_SEARCH_PAGES = ["/", "/menu", "/shop", "/combo"];
 
+const NAV_LINKS = [
+  { href: "/", label: "Головна" },
+  { href: "/menu", label: "Меню" },
+  { href: "/shop", label: "Магазин" },
+  { href: "/combo", label: "Комбо" },
+  { href: "/about-us", label: "Про нас" },
+];
+
 export default function Header() {
   const { user } = useAuthStore();
   const { items } = useCartStore();
   const router = useRouter();
   const pathname = usePathname();
   const showCartSearch = CART_SEARCH_PAGES.includes(pathname);
+  // Task 10: hide user icon on /account page
+  const isAccountPage = pathname === "/account";
+
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -74,30 +85,29 @@ export default function Header() {
           Come by
         </Link>
 
+        {/* Task 12: Nav center with active state via usePathname */}
         <nav className={`nav-center${navOpen ? " active" : ""}`} id="nav">
-          <Link href="/" onClick={() => setNavOpen(false)}>
-            Головна
-          </Link>
-          <Link href="/menu" onClick={() => setNavOpen(false)}>
-            Меню
-          </Link>
-          <Link href="/shop" onClick={() => setNavOpen(false)}>
-            Магазин
-          </Link>
-          <Link href="/combo" onClick={() => setNavOpen(false)}>
-            Комбо
-          </Link>
-          <Link href="/about-us" onClick={() => setNavOpen(false)}>
-            Про нас
-          </Link>
+          {NAV_LINKS.map(({ href, label }) => {
+            const isActive =
+              href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setNavOpen(false)}
+                className={isActive ? "nav-link-active" : undefined}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="icons">
           {showCartSearch && (
             <div className="header-search-wrapper">
-              <div
-                className={`header-search-popup${searchOpen ? " active" : ""}`}
-              >
+              <div className={`header-search-popup${searchOpen ? " active" : ""}`}>
                 <form onSubmit={handleSearch}>
                   <InputGroup>
                     <InputGroupAddon align="inline-start">
@@ -178,23 +188,22 @@ export default function Header() {
             </div>
           )}
 
-          <Link
-            className="icons-user"
-            href={user ? "/account" : "/login"}
-            id="user-link"
-            aria-label="Акаунт"
-          >
-            <User size={24} />
-          </Link>
+          {/* Task 10: hide user link on /account page */}
+          {!isAccountPage && (
+            <Link
+              className="icons-user"
+              href={user ? "/account" : "/login"}
+              id="user-link"
+              aria-label="Акаунт"
+            >
+              <User size={24} />
+            </Link>
+          )}
 
           <ThemeToggle />
         </div>
 
-        <div
-          className="burger"
-          id="burger"
-          onClick={() => setNavOpen((o) => !o)}
-        >
+        <div className="burger" id="burger" onClick={() => setNavOpen((o) => !o)}>
           <Menu size={24} />
         </div>
       </header>
