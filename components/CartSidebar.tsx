@@ -4,7 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { apiCreateOrder } from "@/lib/api";
+import { useToastStore } from "@/store/toastStore";
+import { ShoppingCart } from "lucide-react";
 import OrderModal from "./OrderModal";
+import LoginRequiredModal from "./modals/LoginRequiredModal";
+import OrderSuccessModal from "./modals/OrderSuccessModal";
+import EmptyState from "./ui/EmptyState";
 
 interface Props {
   isOpen: boolean;
@@ -14,7 +19,11 @@ interface Props {
 export default function CartSidebar({ isOpen, onClose }: Props) {
   const { items, updateQty, removeItem, total, clearCart } = useCartStore();
   const { token, user } = useAuthStore();
+  const { toast } = useToastStore();
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [successModal, setSuccessModal] = useState(false);
+  const [successTotal, setSuccessTotal] = useState(0);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,25 +43,31 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
 
   async function handleConfirmOrder() {
     if (!token) {
-      alert("Спочатку увійдіть у свій акаунт");
+      setOrderModalOpen(false);
+      setLoginModalOpen(true);
       return;
     }
     const validItems = items
       .filter((i) => i.id != null && i.quantity > 0)
       .map((i) => ({ productId: i.id!, quantity: i.quantity }));
     if (!validItems.length) {
-      alert("Ваш кошик порожній");
+      toast("Кошик порожній", "info");
       return;
     }
     try {
       await apiCreateOrder(validItems, token);
+      const orderTotal = total;
       clearCart();
       setOrderModalOpen(false);
       onClose();
-      alert("Дякуємо за замовлення!");
+      setSuccessTotal(orderTotal);
+      setSuccessModal(true);
     } catch (err: unknown) {
-      alert(
-        err instanceof Error ? err.message : "Помилка при збереженні товару",
+      toast(
+        err instanceof Error
+          ? err.message
+          : "Помилка при оформленні замовлення",
+        "error",
       );
     }
   }
@@ -73,7 +88,11 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
 
         <div className="cart-content">
           {items.length === 0 ? (
-            <p>Ваша корзина поки що пуста</p>
+            <EmptyState
+              icon={<ShoppingCart size={36} strokeWidth={1.5} />}
+              title="Кошик порожній"
+              subtitle="Додайте щось смачненьке~"
+            />
           ) : (
             items.map((item) => (
               <div className="cart-item" key={item.name}>
@@ -137,6 +156,17 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
           total={total}
           onCancel={() => setOrderModalOpen(false)}
           onConfirm={handleConfirmOrder}
+        />
+      )}
+
+      {loginModalOpen && (
+        <LoginRequiredModal onClose={() => setLoginModalOpen(false)} />
+      )}
+
+      {successModal && (
+        <OrderSuccessModal
+          total={successTotal}
+          onClose={() => setSuccessModal(false)}
         />
       )}
     </>

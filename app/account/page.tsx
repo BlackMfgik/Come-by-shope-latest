@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
+import { useToastStore } from "@/store/toastStore";
 import {
   apiUpdateProfile,
   apiChangePassword,
@@ -12,6 +13,8 @@ import {
 import type { Order } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import OrderDetailsModal from "@/components/modals/OrderDetailsModal";
+import EmptyState from "@/components/ui/EmptyState";
 import {
   User,
   Mail,
@@ -24,6 +27,7 @@ import {
   ChevronRight,
   Pencil,
   Package,
+  ClipboardList,
 } from "lucide-react";
 
 type Tab = "profile" | "orders";
@@ -174,7 +178,7 @@ function OrderHistory({ token }: { token: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     apiGetMyOrders(token)
@@ -183,22 +187,37 @@ function OrderHistory({ token }: { token: string }) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <p>Завантаження...</p>;
-  if (error) return <p style={{ color: "#c0392b" }}>{error}</p>;
-  if (orders.length === 0) return <p>У вас поки немає замовлень.</p>;
+  if (loading)
+    return (
+      <EmptyState
+        icon={<ClipboardList size={36} strokeWidth={1.5} />}
+        title="Завантаження замовлень…"
+      />
+    );
+
+  if (error) return <p style={{ color: "var(--red, #e53935)" }}>{error}</p>;
+
+  if (orders.length === 0)
+    return (
+      <EmptyState
+        icon={<ShoppingBag size={36} strokeWidth={1.5} />}
+        title="Замовлень поки немає"
+        subtitle="Оформіть перше замовлення в магазині~"
+      />
+    );
 
   return (
-    <div className="orders-list">
-      {orders.map((order) => {
-        const isOpen = openId === order.id;
-        const isDelivered = order.status === "Доставлено";
-        return (
-          <div key={order.id} className={`order-card${isOpen ? " open" : ""}`}>
-            {/* ── Header (завжди видимий, клікабельний) ── */}
+    <>
+      <div className="orders-list">
+        {orders.map((order) => {
+          const isDelivered =
+            order.status === "Доставлено" || order.status === "delivered";
+          return (
             <button
-              className="order-card-header"
-              onClick={() => setOpenId(isOpen ? null : order.id)}
-              aria-expanded={isOpen}
+              key={order.id}
+              className="order-card order-card-clickable"
+              onClick={() => setSelectedOrder(order)}
+              aria-label={`Деталі замовлення #${order.id}`}
             >
               <div className="order-card-left">
                 <span className="order-number">Замовлення #{order.id}</span>
@@ -216,37 +235,22 @@ function OrderHistory({ token }: { token: string }) {
                 <span className="order-total-preview">
                   {order.total.toFixed(2)} ₴
                 </span>
-                <span className={`order-chevron${isOpen ? " rotated" : ""}`}>
+                <span className="order-chevron">
                   <ChevronRight size={18} />
                 </span>
               </div>
             </button>
+          );
+        })}
+      </div>
 
-            {/* ── Розкривна частина ── */}
-            {isOpen && (
-              <div className="order-card-body">
-                <div className="order-items">
-                  {order.items.map((item, i) => (
-                    <div key={i} className="order-item-row">
-                      <span className="order-item-name">
-                        {item.productName} × {item.quantity}
-                      </span>
-                      <span className="order-item-price">
-                        {(item.price * item.quantity).toFixed(2)} ₴
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="order-summary-row">
-                  <span>Сума</span>
-                  <span>{order.total.toFixed(2)} ₴</span>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {selectedOrder && (
+        <OrderDetailsModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -296,6 +300,7 @@ function AccountItem({
 
 export default function AccountPage() {
   const { user, token, saveAuth, logout, _hasHydrated } = useAuthStore();
+  const { toast } = useToastStore();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [editField, setEditField] = useState<Field | null>(null);
@@ -349,10 +354,12 @@ export default function AccountPage() {
     try {
       if (field === "password" && extra && token) {
         await apiChangePassword(extra.old, extra.newPass, token);
+        toast("Пароль змінено успішно");
       } else if (field === "payment" && token) {
         const updated = await apiUpdatePayment(val, token);
         setDisplayPayment(val);
         saveAuth(token, updated);
+        toast("Платіжні дані збережено");
       } else if (
         token &&
         (field === "name" ||
@@ -366,9 +373,13 @@ export default function AccountPage() {
         if (field === "email") setDisplayEmail(val);
         if (field === "phone") setDisplayPhone(val);
         if (field === "address") setDisplayAddress(val);
+        toast("Профіль оновлено");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Помилка при збереженні");
+      toast(
+        err instanceof Error ? err.message : "Помилка при збереженні",
+        "error",
+      );
     }
     setEditField(null);
   }

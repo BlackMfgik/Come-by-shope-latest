@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
 interface InputGroupProps {
   children: React.ReactNode;
@@ -9,21 +9,19 @@ interface InputGroupProps {
 
 interface InputGroupAddonProps {
   children: React.ReactNode;
-  align?: 'inline-start' | 'inline-end';
+  align?: "inline-start" | "inline-end";
 }
 
-interface InputGroupInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+interface InputGroupInputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
-export function InputGroup({ children, className = '' }: InputGroupProps) {
-  return (
-    <div className={`input-group ${className}`}>
-      {children}
-    </div>
-  );
+export function InputGroup({ children, className = "" }: InputGroupProps) {
+  return <div className={`input-group ${className}`}>{children}</div>;
 }
 
-export function InputGroupAddon({ children, align = 'inline-start' }: InputGroupAddonProps) {
+export function InputGroupAddon({
+  children,
+  align = "inline-start",
+}: InputGroupAddonProps) {
   return (
     <div className={`input-group-addon input-group-addon--${align}`}>
       {children}
@@ -31,13 +29,14 @@ export function InputGroupAddon({ children, align = 'inline-start' }: InputGroup
   );
 }
 
-export const InputGroupInput = React.forwardRef<HTMLInputElement, InputGroupInputProps>(
-  function InputGroupInput({ className = '', ...props }, ref) {
-    return (
-      <input ref={ref} className={`input-group-input ${className}`} {...props} />
-    );
-  }
-);
+export const InputGroupInput = React.forwardRef<
+  HTMLInputElement,
+  InputGroupInputProps
+>(function InputGroupInput({ className = "", ...props }, ref) {
+  return (
+    <input ref={ref} className={`input-group-input ${className}`} {...props} />
+  );
+});
 
 export function SearchIcon() {
   return (

@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useThemeStore } from "@/store/themeStore";
+import Toast from "@/components/Toast";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 function ThemeInitializer() {
   const theme = useThemeStore((s) => s.theme);
@@ -17,6 +19,8 @@ export default function Providers({ children }: { children: ReactNode }) {
     <>
       <ThemeInitializer />
       {children}
+      <Toast />
+      <MobileBottomNav />
     </>
   );
 }

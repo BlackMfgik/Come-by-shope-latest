@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 import { apiLogin } from "@/lib/api";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import ForgotPasswordModal from "@/components/modals/ForgotPasswordModal";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -106,7 +108,13 @@ export default function LoginPage() {
           </form>
 
           <div className="register-links login-links-row">
-            <a href="#">Забули пароль?</a>
+            <button
+              type="button"
+              className="forgot-link"
+              onClick={() => setForgotOpen(true)}
+            >
+              Забули пароль?
+            </button>
             <span>
               Немає акаунту? <Link href="/registration">Реєстрація</Link>
             </span>
@@ -114,6 +122,10 @@ export default function LoginPage() {
         </div>
       </main>
       <Footer />
+
+      {forgotOpen && (
+        <ForgotPasswordModal onClose={() => setForgotOpen(false)} />
+      )}
     </>
   );
 }
