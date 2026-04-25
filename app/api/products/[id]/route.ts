@@ -53,7 +53,9 @@ export async function PATCH(
   const body = await req.json();
   // Only allow patching the `hidden` field via PATCH
   if (typeof body.hidden === "boolean") {
-    (db.products[idx] as typeof db.products[number] & { hidden?: boolean }).hidden = body.hidden;
+    (
+      db.products[idx] as (typeof db.products)[number] & { hidden?: boolean }
+    ).hidden = body.hidden;
   }
   return NextResponse.json(db.products[idx]);
 }

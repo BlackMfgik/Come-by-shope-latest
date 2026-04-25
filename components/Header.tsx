@@ -107,7 +107,9 @@ export default function Header() {
         <div className="icons">
           {showCartSearch && (
             <div className="header-search-wrapper">
-              <div className={`header-search-popup${searchOpen ? " active" : ""}`}>
+              <div
+                className={`header-search-popup${searchOpen ? " active" : ""}`}
+              >
                 <form onSubmit={handleSearch}>
                   <InputGroup>
                     <InputGroupAddon align="inline-start">
@@ -203,7 +205,11 @@ export default function Header() {
           <ThemeToggle />
         </div>
 
-        <div className="burger" id="burger" onClick={() => setNavOpen((o) => !o)}>
+        <div
+          className="burger"
+          id="burger"
+          onClick={() => setNavOpen((o) => !o)}
+        >
           <Menu size={24} />
         </div>
       </header>

@@ -11,7 +11,11 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ConfirmPasswordModal({ token, onSuccess, onClose }: Props) {
+export default function ConfirmPasswordModal({
+  token,
+  onSuccess,
+  onClose,
+}: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -89,7 +93,13 @@ export default function ConfirmPasswordModal({ token, onSuccess, onClose }: Prop
             autoFocus
           />
           {error && (
-            <p style={{ color: "var(--red, #e53935)", fontSize: "0.9rem", margin: 0 }}>
+            <p
+              style={{
+                color: "var(--red, #e53935)",
+                fontSize: "0.9rem",
+                margin: 0,
+              }}
+            >
               {error}
             </p>
           )}
@@ -102,7 +112,11 @@ export default function ConfirmPasswordModal({ token, onSuccess, onClose }: Prop
             >
               Скасувати
             </button>
-            <button type="submit" className="order-btn primary" disabled={loading}>
+            <button
+              type="submit"
+              className="order-btn primary"
+              disabled={loading}
+            >
               {loading ? "Перевіряємо…" : "Підтвердити"}
             </button>
           </div>

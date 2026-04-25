@@ -25,7 +25,10 @@ export default function ForgotPasswordModal({ onClose }: Props) {
       aria-labelledby="modal-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 360, textAlign: "center" }}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: 360, textAlign: "center" }}
+      >
         <button className="modal-close" onClick={onClose} aria-label="Закрити">
           <X size={16} />
         </button>
@@ -36,11 +39,16 @@ export default function ForgotPasswordModal({ onClose }: Props) {
 
         {!sent ? (
           <>
-            <h3 id="modal-title" style={{ margin: "0 0 6px" }}>Забули пароль?</h3>
+            <h3 id="modal-title" style={{ margin: "0 0 6px" }}>
+              Забули пароль?
+            </h3>
             <p className="modal-subtitle">
               Введіть свій email і ми надішлемо інструкцію для відновлення~
             </p>
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <form
+              onSubmit={handleSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            >
               <input
                 type="email"
                 required
@@ -60,18 +68,31 @@ export default function ForgotPasswordModal({ onClose }: Props) {
                 }}
               />
               <div className="modal-buttons">
-                <button type="submit" className="order-btn primary">Надіслати</button>
-                <button type="button" className="order-btn secondary" onClick={onClose}>Скасувати</button>
+                <button type="submit" className="order-btn primary">
+                  Надіслати
+                </button>
+                <button
+                  type="button"
+                  className="order-btn secondary"
+                  onClick={onClose}
+                >
+                  Скасувати
+                </button>
               </div>
             </form>
           </>
         ) : (
           <>
-            <h3 id="modal-title" style={{ margin: "0 0 6px" }}>Листа надіслано!</h3>
+            <h3 id="modal-title" style={{ margin: "0 0 6px" }}>
+              Листа надіслано!
+            </h3>
             <p className="modal-subtitle">
-              Перевірте пошту <strong>{email}</strong> і дотримуйтесь інструкцій~
+              Перевірте пошту <strong>{email}</strong> і дотримуйтесь
+              інструкцій~
             </p>
-            <button className="order-btn primary" onClick={onClose}>Чудово!</button>
+            <button className="order-btn primary" onClick={onClose}>
+              Чудово!
+            </button>
           </>
         )}
       </div>

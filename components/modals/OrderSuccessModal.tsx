@@ -24,7 +24,10 @@ export default function OrderSuccessModal({ total, onClose }: Props) {
       aria-labelledby="modal-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 360, textAlign: "center" }}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: 360, textAlign: "center" }}
+      >
         <button className="modal-close" onClick={onClose} aria-label="Закрити">
           <X size={16} />
         </button>
@@ -33,7 +36,9 @@ export default function OrderSuccessModal({ total, onClose }: Props) {
           <CheckCircle2 size={36} color="var(--accent, #009956)" />
         </div>
 
-        <h3 id="modal-title" style={{ margin: "0 0 6px" }}>Замовлення оформлено!</h3>
+        <h3 id="modal-title" style={{ margin: "0 0 6px" }}>
+          Замовлення оформлено!
+        </h3>
         <p className="modal-subtitle">
           Дякуємо за замовлення~ Сума: <strong>{total.toFixed(2)} ₴</strong>
           <br />

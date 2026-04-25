@@ -33,7 +33,9 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
       await apiRequestEmailChange(newEmail.trim(), token);
       setStep(2);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Помилка при надсиланні коду");
+      setError(
+        err instanceof Error ? err.message : "Помилка при надсиланні коду",
+      );
     } finally {
       setLoading(false);
     }
@@ -48,7 +50,11 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
     }
     setLoading(true);
     try {
-      const updatedUser = await apiConfirmEmailChange(newEmail.trim(), code.trim(), token);
+      const updatedUser = await apiConfirmEmailChange(
+        newEmail.trim(),
+        code.trim(),
+        token,
+      );
       saveAuth(token, updatedUser);
       toast("Email змінено~");
       onClose();
@@ -98,7 +104,13 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
                 autoFocus
               />
               {error && (
-                <p style={{ color: "var(--red, #e53935)", fontSize: "0.9rem", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--red, #e53935)",
+                    fontSize: "0.9rem",
+                    margin: 0,
+                  }}
+                >
                   {error}
                 </p>
               )}
@@ -141,10 +153,20 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                 className="modal-input"
                 autoFocus
-                style={{ letterSpacing: "0.25em", textAlign: "center", fontSize: "1.2rem" }}
+                style={{
+                  letterSpacing: "0.25em",
+                  textAlign: "center",
+                  fontSize: "1.2rem",
+                }}
               />
               {error && (
-                <p style={{ color: "var(--red, #e53935)", fontSize: "0.9rem", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--red, #e53935)",
+                    fontSize: "0.9rem",
+                    margin: 0,
+                  }}
+                >
                   {error}
                 </p>
               )}
@@ -152,7 +174,11 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
                 <button
                   type="button"
                   className="order-btn secondary"
-                  onClick={() => { setStep(1); setError(""); setCode(""); }}
+                  onClick={() => {
+                    setStep(1);
+                    setError("");
+                    setCode("");
+                  }}
                   onMouseDown={(e) => e.preventDefault()}
                 >
                   Назад

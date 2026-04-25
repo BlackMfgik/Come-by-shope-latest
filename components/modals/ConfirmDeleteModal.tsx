@@ -8,7 +8,11 @@ interface Props {
   onConfirm: () => void;
 }
 
-export default function ConfirmDeleteModal({ productName, onClose, onConfirm }: Props) {
+export default function ConfirmDeleteModal({
+  productName,
+  onClose,
+  onConfirm,
+}: Props) {
   function handleConfirm() {
     onConfirm();
     onClose();
@@ -22,7 +26,10 @@ export default function ConfirmDeleteModal({ productName, onClose, onConfirm }: 
       aria-labelledby="modal-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 360, textAlign: "center" }}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: 360, textAlign: "center" }}
+      >
         <button className="modal-close" onClick={onClose} aria-label="Закрити">
           <X size={16} />
         </button>
@@ -31,13 +38,18 @@ export default function ConfirmDeleteModal({ productName, onClose, onConfirm }: 
           <Trash2 size={28} color="var(--red, #e53935)" />
         </div>
 
-        <h3 id="modal-title" style={{ margin: 0 }}>Видалити товар?</h3>
+        <h3 id="modal-title" style={{ margin: 0 }}>
+          Видалити товар?
+        </h3>
         <p className="modal-subtitle">
           «{productName}» буде видалено назавжди. Цю дію не можна скасувати.
         </p>
 
         <div className="modal-buttons">
-          <button className="order-btn primary order-btn-danger" onClick={handleConfirm}>
+          <button
+            className="order-btn primary order-btn-danger"
+            onClick={handleConfirm}
+          >
             Так, видалити
           </button>
           <button className="order-btn secondary" onClick={onClose}>

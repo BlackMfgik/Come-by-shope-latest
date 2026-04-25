@@ -23,7 +23,10 @@ export default function LoginRequiredModal({ onClose }: Props) {
       aria-labelledby="modal-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 360, textAlign: "center" }}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: 360, textAlign: "center" }}
+      >
         <button className="modal-close" onClick={onClose} aria-label="Закрити">
           <X size={16} />
         </button>
@@ -32,7 +35,9 @@ export default function LoginRequiredModal({ onClose }: Props) {
           <LogIn size={28} color="var(--accent, #009956)" />
         </div>
 
-        <h3 id="modal-title" style={{ margin: 0 }}>Увійдіть в акаунт</h3>
+        <h3 id="modal-title" style={{ margin: 0 }}>
+          Увійдіть в акаунт
+        </h3>
         <p className="modal-subtitle">
           Щоб оформити замовлення, потрібно спочатку увійти або зареєструватись~
         </p>
