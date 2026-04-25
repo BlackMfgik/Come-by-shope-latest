@@ -1,25 +1,6 @@
-/**
- * 🚧 MOCK — Change email: request code
- * In production: send email with real code
- */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/mockDb";
-
-interface PendingChange {
-  userId: number;
-  newEmail: string;
-  code: string;
-  expiresAt: number;
-}
-
-// In-memory store (singleton across HMR)
-const globalForPending = globalThis as typeof globalThis & {
-  _emailChangePending?: Map<number, PendingChange>;
-};
-if (!globalForPending._emailChangePending) {
-  globalForPending._emailChangePending = new Map();
-}
-export const pendingEmailChanges = globalForPending._emailChangePending;
+import { pendingEmailChanges } from "@/lib/pendingEmailChanges";
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -39,10 +20,12 @@ export async function POST(req: NextRequest) {
 
   const newEmail = body.newEmail?.trim();
   if (!newEmail) {
-    return NextResponse.json({ error: "newEmail is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "newEmail is required" },
+      { status: 400 },
+    );
   }
 
-  // Check if email already taken
   const existing = db.users.find(
     (u) => u.email === newEmail && u.id !== user.id,
   );
@@ -53,16 +36,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Store pending change with mock code
   pendingEmailChanges.set(user.id, {
     userId: user.id,
     newEmail,
     code: "123456",
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+    expiresAt: Date.now() + 10 * 60 * 1000,
   });
 
-  // In production: send actual email with code
-  console.log(`[MOCK] Email change code for user ${user.id}: 123456 → ${newEmail}`);
+  console.log(
+    `[MOCK] Email change code for user ${user.id}: 123456 → ${newEmail}`,
+  );
 
   return NextResponse.json({ ok: true });
 }

@@ -1,9 +1,6 @@
-/**
- * 🚧 MOCK — Change email: confirm code
- */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/mockDb";
-import { pendingEmailChanges } from "../request/route";
+import { pendingEmailChanges } from "@/lib/pendingEmailChanges";
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -47,7 +44,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Невірний код" }, { status: 400 });
   }
 
-  // Update user email
   const idx = db.users.findIndex((u) => u.id === user.id);
   if (idx !== -1) {
     db.users[idx].email = pending.newEmail;

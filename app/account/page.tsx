@@ -56,7 +56,13 @@ interface EditModalProps {
   onForgotPassword?: () => void;
 }
 
-function EditModal({ field, currentValue, onSave, onClose, onForgotPassword }: EditModalProps) {
+function EditModal({
+  field,
+  currentValue,
+  onSave,
+  onClose,
+  onForgotPassword,
+}: EditModalProps) {
   const [val, setVal] = useState(currentValue);
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -117,7 +123,9 @@ function EditModal({ field, currentValue, onSave, onClose, onForgotPassword }: E
                 value={val}
                 onChange={(e) => setVal(e.target.value)}
                 onBlur={(e) => {
-                  if (!editContainerRef.current?.contains(e.relatedTarget as Node)) {
+                  if (
+                    !editContainerRef.current?.contains(e.relatedTarget as Node)
+                  ) {
                     // don't close, user is still inside modal
                   }
                 }}
@@ -152,7 +160,11 @@ function EditModal({ field, currentValue, onSave, onClose, onForgotPassword }: E
               {err && (
                 <div
                   id="modal-error"
-                  style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}
+                  style={{
+                    color: "#c0392b",
+                    fontSize: "0.95rem",
+                    marginTop: 6,
+                  }}
                 >
                   {err}
                 </div>
@@ -245,10 +257,7 @@ function OrderHistory({ token }: { token: string }) {
         const isOpen = openOrderId === order.id;
 
         return (
-          <div
-            key={order.id}
-            className={`order-card${isOpen ? " open" : ""}`}
-          >
+          <div key={order.id} className={`order-card${isOpen ? " open" : ""}`}>
             <button
               className="order-card-header"
               onClick={() => setOpenOrderId(isOpen ? null : order.id)}
@@ -408,12 +417,18 @@ export default function AccountPage() {
 
   function getCurrentValue(field: Field): string {
     switch (field) {
-      case "name": return displayName;
-      case "email": return displayEmail;
-      case "phone": return displayPhone;
-      case "address": return displayAddress;
-      case "payment": return displayPayment;
-      case "password": return "";
+      case "name":
+        return displayName;
+      case "email":
+        return displayEmail;
+      case "phone":
+        return displayPhone;
+      case "address":
+        return displayAddress;
+      case "payment":
+        return displayPayment;
+      case "password":
+        return "";
     }
   }
 
@@ -546,10 +561,15 @@ export default function AccountPage() {
 
                 <div
                   className="account-item logout-item"
-                  onClick={() => { logout(); router.push("/login"); }}
+                  onClick={() => {
+                    logout();
+                    router.push("/login");
+                  }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && (logout(), router.push("/login"))}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && (logout(), router.push("/login"))
+                  }
                   aria-label="Вийти з акаунту"
                 >
                   <div className="item-info">
@@ -560,7 +580,10 @@ export default function AccountPage() {
                       <strong>Вийти з акаунту</strong>
                     </div>
                   </div>
-                  <span className="account-item-icon" style={{ color: "var(--text-3)" }}>
+                  <span
+                    className="account-item-icon"
+                    style={{ color: "var(--text-3)" }}
+                  >
                     <ChevronRight size={18} />
                   </span>
                 </div>
