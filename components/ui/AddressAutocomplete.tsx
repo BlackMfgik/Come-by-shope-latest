@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface Suggestion {
-  placeId: string;
-  description: string;
+  id: string;
+  label: string;
 }
 
 interface Props {
@@ -15,152 +15,112 @@ interface Props {
   className?: string;
 }
 
-declare global {
-  interface Window {
-    google?: {
-      maps: {
-        places: {
-          AutocompleteService: new () => {
-            getPlacePredictions: (
-              request: {
-                input: string;
-                language?: string;
-                componentRestrictions?: { country: string };
-              },
-              callback: (
-                predictions: Array<{ place_id: string; description: string }> | null,
-                status: string,
-              ) => void,
-            ) => void;
-          };
-          PlacesServiceStatus: { OK: string };
-        };
-      };
-    };
+// Kyiv's settlement ref in Nova Poshta DB
+const KYIV_REF = "8d5a980d-391c-11dd-90d9-001a92567626";
+const NP_API = "https://api.novaposhta.ua/v2.0/json/";
+
+async function searchStreets(query: string): Promise<Suggestion[]> {
+  const apiKey = process.env.NEXT_PUBLIC_NOVA_POSHTA_KEY;
+  if (!apiKey) {
+    console.warn(
+      "[AddressAutocomplete] NEXT_PUBLIC_NOVA_POSHTA_KEY не вказаний",
+    );
+    return [];
   }
+
+  const res = await fetch(NP_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      apiKey,
+      modelName: "Address",
+      calledMethod: "searchSettlementStreets",
+      methodProperties: {
+        StreetName: query,
+        SettlementRef: KYIV_REF,
+        Limit: "5",
+      },
+    }),
+  });
+
+  if (!res.ok) return [];
+
+  const json = await res.json();
+
+  // Nova Poshta response: { data: [{ Addresses: [...] }] }
+  const addresses: Array<{ Present: string; SettlementStreetRef: string }> =
+    json?.data?.[0]?.Addresses ?? [];
+
+  return addresses.map((a) => ({
+    id: a.SettlementStreetRef,
+    label: a.Present, // e.g. "вул. Хрещатик, Київ"
+  }));
 }
 
 export default function AddressAutocomplete({
   value,
   onChange,
-  placeholder = "Введіть адресу",
+  placeholder = "Введіть вулицю, Київ",
   id,
   className,
 }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const serviceRef = useRef<InstanceType<
-    (typeof window)["google"]["maps"]["places"]["AutocompleteService"]
-  > | null>(null);
-
-  // Load Google Maps script
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-    if (!apiKey) return;
-
-    if (window.google?.maps?.places) {
-      setScriptLoaded(true);
-      return;
-    }
-
-    const existingScript = document.getElementById("google-maps-script");
-    if (existingScript) {
-      existingScript.addEventListener("load", () => setScriptLoaded(true));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = "google-maps-script";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=uk`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setScriptLoaded(true);
-    document.head.appendChild(script);
-  }, []);
-
-  // Initialize service after script is loaded
-  useEffect(() => {
-    if (scriptLoaded && window.google?.maps?.places) {
-      serviceRef.current = new window.google.maps.places.AutocompleteService();
-    }
-  }, [scriptLoaded]);
 
   // Close on outside click
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    function onMouseDown(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
   }, []);
-
-  const fetchSuggestions = useCallback(
-    (input: string) => {
-      if (!serviceRef.current || input.length < 3) {
-        setSuggestions([]);
-        setIsOpen(false);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      serviceRef.current.getPlacePredictions(
-        { input, language: "uk" },
-        (predictions, status) => {
-          setIsLoading(false);
-          if (
-            status === window.google?.maps?.places?.PlacesServiceStatus?.OK &&
-            predictions
-          ) {
-            setSuggestions(
-              predictions.slice(0, 5).map((p) => ({
-                placeId: p.place_id,
-                description: p.description,
-              })),
-            );
-            setIsOpen(true);
-          } else {
-            setSuggestions([]);
-            setIsOpen(false);
-          }
-        },
-      );
-    },
-    [],
-  );
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     onChange(val);
+    setSuggestions([]);
+    setIsOpen(false);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (val.length < 3) {
-      setSuggestions([]);
-      setIsOpen(false);
+    if (val.trim().length < 3) {
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    debounceRef.current = setTimeout(() => {
-      fetchSuggestions(val);
-    }, 300);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchStreets(val.trim());
+        setSuggestions(results);
+        setIsOpen(results.length > 0);
+      } catch {
+        setSuggestions([]);
+        setIsOpen(false);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 350);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
       setIsOpen(false);
+      setSuggestions([]);
     }
   }
 
-  function handleSelect(description: string) {
-    onChange(description);
+  function handleSelect(label: string) {
+    onChange(label);
     setSuggestions([]);
     setIsOpen(false);
   }
@@ -178,7 +138,7 @@ export default function AddressAutocomplete({
         autoComplete="off"
       />
 
-      {isLoading && value.length >= 3 && (
+      {isLoading && value.trim().length >= 3 && (
         <div className="address-autocomplete-dropdown">
           <div className="address-autocomplete-loading">Шукаємо…</div>
         </div>
@@ -188,14 +148,14 @@ export default function AddressAutocomplete({
         <div className="address-autocomplete-dropdown" role="listbox">
           {suggestions.map((s) => (
             <button
-              key={s.placeId}
+              key={s.id}
               className="address-autocomplete-item"
               role="option"
               type="button"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleSelect(s.description)}
+              onClick={() => handleSelect(s.label)}
             >
-              {s.description}
+              {s.label}
             </button>
           ))}
         </div>
