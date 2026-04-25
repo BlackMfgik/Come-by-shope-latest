@@ -13,7 +13,14 @@ import {
   apiToggleProductVisibility,
 } from "@/lib/api";
 import type { Product } from "@/types";
-import { Pencil, Trash2, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
 import CategoryFilter from "@/components/ui/CategoryFilter";
@@ -27,6 +34,7 @@ interface Props {
   searchQuery?: string;
   category?: string;
   limit?: number;
+  hideFilter?: boolean;
 }
 
 export default function ProductCatalog({
@@ -34,6 +42,7 @@ export default function ProductCatalog({
   searchQuery = "",
   category,
   limit,
+  hideFilter = false,
 }: Props) {
   const { user, token } = useAuthStore();
   const { addItem } = useCartStore();
@@ -45,7 +54,9 @@ export default function ProductCatalog({
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [activeCategory, setActiveCategory] = useState(category ?? "");
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(
+    null,
+  );
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   // Task 9: overlay per card
   const [overlayProductId, setOverlayProductId] = useState<number | null>(null);
@@ -108,10 +119,19 @@ export default function ProductCatalog({
         await apiCreateProduct(payload, token);
         toast("Товар додано ✓");
       }
-      setAdminForm({ name: "", description: "", weight: "", price: "", imageName: "" });
+      setAdminForm({
+        name: "",
+        description: "",
+        weight: "",
+        price: "",
+        imageName: "",
+      });
       await loadProducts();
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Помилка при збереженні товару", "error");
+      toast(
+        err instanceof Error ? err.message : "Помилка при збереженні товару",
+        "error",
+      );
     }
   }
 
@@ -126,7 +146,9 @@ export default function ProductCatalog({
         imageName: p.imageName ?? "",
       });
       setEditingId(id);
-      document.getElementById("admin-panel")?.scrollIntoView({ behavior: "smooth" });
+      document
+        .getElementById("admin-panel")
+        ?.scrollIntoView({ behavior: "smooth" });
     } catch {
       toast("Не вдалося завантажити товар", "error");
     }
@@ -149,7 +171,9 @@ export default function ProductCatalog({
     const newHidden = !p.hidden;
     try {
       const updated = await apiToggleProductVisibility(p.id, newHidden, token);
-      setProducts((prev) => prev.map((item) => (item.id === p.id ? updated : item)));
+      setProducts((prev) =>
+        prev.map((item) => (item.id === p.id ? updated : item)),
+      );
       toast(newHidden ? "Товар приховано 👁️" : "Товар показано 👁️");
     } catch {
       toast("Не вдалося змінити видимість", "error");
@@ -173,7 +197,9 @@ export default function ProductCatalog({
     .slice(0, limit ?? undefined);
 
   function scrollToTop() {
-    document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById("catalog")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function goToPage(p: number) {
@@ -192,20 +218,26 @@ export default function ProductCatalog({
               placeholder="Назва товару"
               required
               value={adminForm.name}
-              onChange={(e) => setAdminForm((f) => ({ ...f, name: e.target.value }))}
+              onChange={(e) =>
+                setAdminForm((f) => ({ ...f, name: e.target.value }))
+              }
             />
             <input
               id="admin-product-description"
               placeholder="Опис товару"
               value={adminForm.description}
-              onChange={(e) => setAdminForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(e) =>
+                setAdminForm((f) => ({ ...f, description: e.target.value }))
+              }
             />
             <input
               id="admin-product-weight"
               type="text"
               placeholder="Вага"
               value={adminForm.weight}
-              onChange={(e) => setAdminForm((f) => ({ ...f, weight: e.target.value }))}
+              onChange={(e) =>
+                setAdminForm((f) => ({ ...f, weight: e.target.value }))
+              }
             />
             <input
               id="admin-product-price"
@@ -214,14 +246,18 @@ export default function ProductCatalog({
               placeholder="Ціна"
               required
               value={adminForm.price}
-              onChange={(e) => setAdminForm((f) => ({ ...f, price: e.target.value }))}
+              onChange={(e) =>
+                setAdminForm((f) => ({ ...f, price: e.target.value }))
+              }
             />
             <input
               id="admin-product-image"
               type="text"
               placeholder="Назва зображення (без формату)"
               value={adminForm.imageName}
-              onChange={(e) => setAdminForm((f) => ({ ...f, imageName: e.target.value }))}
+              onChange={(e) =>
+                setAdminForm((f) => ({ ...f, imageName: e.target.value }))
+              }
             />
             <button className="add-btn" type="submit">
               {editingId != null ? "Зберегти зміни" : "Додати товар"}
@@ -231,7 +267,13 @@ export default function ProductCatalog({
                 type="button"
                 onClick={() => {
                   setEditingId(null);
-                  setAdminForm({ name: "", description: "", weight: "", price: "", imageName: "" });
+                  setAdminForm({
+                    name: "",
+                    description: "",
+                    weight: "",
+                    price: "",
+                    imageName: "",
+                  });
                 }}
                 style={{ marginLeft: 8 }}
               >
@@ -242,7 +284,7 @@ export default function ProductCatalog({
         </section>
       )}
 
-      {categories.length > 0 && (
+      {!hideFilter && categories.length > 0 && (
         <CategoryFilter
           categories={categories}
           active={activeCategory}
@@ -251,7 +293,8 @@ export default function ProductCatalog({
       )}
 
       <section className="catalog" id="catalog">
-        {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+        {loading &&
+          Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
         {!loading && error && <p className="error-wrap">{error}</p>}
 
@@ -281,7 +324,9 @@ export default function ProductCatalog({
                 style={{ position: "relative", cursor: "pointer" }}
                 onClick={() => {
                   if (isAdmin) {
-                    setOverlayProductId(overlayProductId === p.id ? null : p.id);
+                    setOverlayProductId(
+                      overlayProductId === p.id ? null : p.id,
+                    );
                   } else {
                     setQuickViewProduct(p);
                   }
@@ -306,7 +351,11 @@ export default function ProductCatalog({
                     </span>
                     <button
                       className="add-btn"
-                      style={isHidden && !isAdmin ? { pointerEvents: "none", opacity: 0.4 } : undefined}
+                      style={
+                        isHidden && !isAdmin
+                          ? { pointerEvents: "none", opacity: 0.4 }
+                          : undefined
+                      }
                       disabled={isHidden && !isAdmin}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -331,7 +380,8 @@ export default function ProductCatalog({
                   <div
                     className="admin-card-overlay"
                     onClick={(e) => {
-                      if (e.target === e.currentTarget) setOverlayProductId(null);
+                      if (e.target === e.currentTarget)
+                        setOverlayProductId(null);
                     }}
                   >
                     <button
@@ -364,7 +414,15 @@ export default function ProductCatalog({
                         handleToggleVisibility(p);
                       }}
                     >
-                      {isHidden ? <><Eye size={14} /> Показати</> : <><EyeOff size={14} /> Приховати</>}
+                      {isHidden ? (
+                        <>
+                          <Eye size={14} /> Показати
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff size={14} /> Приховати
+                        </>
+                      )}
                     </button>
                   </div>
                 )}

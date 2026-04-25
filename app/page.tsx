@@ -53,7 +53,7 @@ export default async function HomePage() {
           </h1>
         </section>
         <Suspense fallback={<Loading />}>
-          <ProductCatalog initialProducts={products} limit={8} />
+          <ProductCatalog initialProducts={products} limit={8} hideFilter />
         </Suspense>
       </main>
       <Footer />
