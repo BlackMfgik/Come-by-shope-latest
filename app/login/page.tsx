@@ -33,6 +33,8 @@ export default function LoginPage() {
     try {
       const data = await apiLogin(email, password);
       saveAuth(data.token, data.user);
+      // Зберігаємо токен у cookie для серверної перевірки (напр. /admin)
+      document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
       router.push("/shop");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Помилка входу");

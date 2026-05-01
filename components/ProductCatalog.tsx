@@ -14,12 +14,14 @@ import {
 } from "@/lib/api";
 import type { Product } from "@/types";
 import {
-  Pencil,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
+  Pencil,
+  Trash2,
+  X,
+  Plus,
 } from "lucide-react";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -28,6 +30,16 @@ import ProductQuickViewModal from "@/components/modals/ProductQuickViewModal";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
 
 const PAGE_SIZE = 8;
+
+const EMPTY_FORM = {
+  name: "",
+  description: "",
+  weight: "",
+  price: "",
+  imageName: "",
+  category: "",
+  customCategory: "",
+};
 
 interface Props {
   initialProducts: Product[];
@@ -48,7 +60,6 @@ export default function ProductCatalog({
   const { addItem } = useCartStore();
   const { toast } = useToastStore();
 
-  // Task 11: load all products on mount to fix pagination
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -58,41 +69,35 @@ export default function ProductCatalog({
     null,
   );
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  // Task 9: overlay per card
   const [overlayProductId, setOverlayProductId] = useState<number | null>(null);
 
-  // Task 11: load full product list on mount (fixes pagination slicing bug)
-  useEffect(() => {
-    loadProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Admin form
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
-  // Reset to page 1 when filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery, activeCategory]);
+  const isAdmin = user?.admin ?? false;
+  const isNewCategory = form.category === "__new__";
+  const effectiveCategory = isNewCategory ? form.customCategory : form.category;
 
-  // Derive unique categories from products
   const categories = useMemo(() => {
     const cats = products.map((p) => p.category).filter(Boolean) as string[];
     return [...new Set(cats)].sort();
   }, [products]);
 
-  const [adminForm, setAdminForm] = useState({
-    name: "",
-    description: "",
-    weight: "",
-    price: "",
-    imageName: "",
-  });
-  const [editingId, setEditingId] = useState<number | null>(null);
+  useEffect(() => {
+    loadProducts();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, activeCategory]);
 
   async function loadProducts() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGetProducts();
-      setProducts(data);
+      setProducts(await apiGetProducts());
     } catch {
       setError("Не вдалося завантажити товари");
     } finally {
@@ -100,15 +105,17 @@ export default function ProductCatalog({
     }
   }
 
-  async function handleAdminSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
+    setSaving(true);
     const payload = {
-      name: adminForm.name,
-      description: adminForm.description,
-      weight: adminForm.weight,
-      price: parseFloat(adminForm.price),
-      imageName: adminForm.imageName,
+      name: form.name,
+      description: form.description,
+      weight: form.weight,
+      price: parseFloat(form.price),
+      imageName: form.imageName,
+      category: effectiveCategory,
     };
     try {
       if (editingId != null) {
@@ -119,36 +126,34 @@ export default function ProductCatalog({
         await apiCreateProduct(payload, token);
         toast("Товар додано ✓");
       }
-      setAdminForm({
-        name: "",
-        description: "",
-        weight: "",
-        price: "",
-        imageName: "",
-      });
+      setForm(EMPTY_FORM);
+      setAdminOpen(false);
       await loadProducts();
     } catch (err: unknown) {
       toast(
-        err instanceof Error ? err.message : "Помилка при збереженні товару",
+        err instanceof Error ? err.message : "Помилка при збереженні",
         "error",
       );
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleEdit(id: number) {
     try {
       const p = await apiGetProduct(id);
-      setAdminForm({
+      setForm({
         name: p.name,
         description: p.description ?? "",
         weight: p.weight ?? "",
         price: String(p.price),
         imageName: p.imageName ?? "",
+        category: p.category ?? "",
+        customCategory: "",
       });
       setEditingId(id);
-      document
-        .getElementById("admin-panel")
-        ?.scrollIntoView({ behavior: "smooth" });
+      setAdminOpen(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       toast("Не вдалося завантажити товар", "error");
     }
@@ -158,32 +163,38 @@ export default function ProductCatalog({
     if (!token) return;
     try {
       await apiDeleteProduct(id, token);
-      toast("Товар видалено", "success");
+      toast("Товар видалено");
       await loadProducts();
     } catch {
       toast("Не вдалося видалити товар", "error");
     }
   }
 
-  // Task 9: toggle visibility
   async function handleToggleVisibility(p: Product) {
     if (!token) return;
-    const newHidden = !p.hidden;
     try {
-      const updated = await apiToggleProductVisibility(p.id, newHidden, token);
+      const updated = await apiToggleProductVisibility(p.id, !p.hidden, token);
       setProducts((prev) =>
         prev.map((item) => (item.id === p.id ? updated : item)),
       );
-      toast(newHidden ? "Товар приховано 👁️" : "Товар показано 👁️");
+      toast(p.hidden ? "Товар показано" : "Товар приховано");
     } catch {
       toast("Не вдалося змінити видимість", "error");
     }
     setOverlayProductId(null);
   }
 
-  const isAdmin = user?.admin;
+  const f =
+    (key: keyof typeof form) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) =>
+      setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const filtered = products.filter((p) => {
+    if (!isAdmin && p.hidden) return false;
     const matchesSearch =
       !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !activeCategory || p.category === activeCategory;
@@ -196,103 +207,304 @@ export default function ProductCatalog({
     .slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
     .slice(0, limit ?? undefined);
 
-  function scrollToTop() {
+  function goToPage(p: number) {
+    setPage(p);
     document
       .getElementById("catalog")
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function goToPage(p: number) {
-    setPage(p);
-    scrollToTop();
-  }
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "9px 12px",
+    borderRadius: 10,
+    border: "0.5px solid var(--border-2)",
+    background: "var(--surface)",
+    color: "var(--text)",
+    fontSize: 14,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: "var(--text-2)",
+  };
 
   return (
     <>
+      {/* ── Адмін форма ── */}
       {isAdmin && (
-        <section id="admin-panel" className="admin-panel">
-          <form id="admin-product-form" onSubmit={handleAdminSubmit}>
-            <input
-              id="admin-product-name"
-              type="text"
-              placeholder="Назва товару"
-              required
-              value={adminForm.name}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, name: e.target.value }))
-              }
-            />
-            <input
-              id="admin-product-description"
-              placeholder="Опис товару"
-              value={adminForm.description}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, description: e.target.value }))
-              }
-            />
-            <input
-              id="admin-product-weight"
-              type="text"
-              placeholder="Вага"
-              value={adminForm.weight}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, weight: e.target.value }))
-              }
-            />
-            <input
-              id="admin-product-price"
-              type="number"
-              step="0.01"
-              placeholder="Ціна"
-              required
-              value={adminForm.price}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, price: e.target.value }))
-              }
-            />
-            <input
-              id="admin-product-image"
-              type="text"
-              placeholder="Назва зображення (без формату)"
-              value={adminForm.imageName}
-              onChange={(e) =>
-                setAdminForm((f) => ({ ...f, imageName: e.target.value }))
-              }
-            />
-            <button className="add-btn" type="submit">
-              {editingId != null ? "Зберегти зміни" : "Додати товар"}
+        <div
+          style={{
+            marginTop: "calc(80px * var(--scale))",
+            maxWidth: 900,
+            margin: "calc(80px * var(--scale)) auto 0",
+            padding: "0 calc(24px * var(--scale))",
+          }}
+        >
+          {/* Кнопка відкрити/закрити */}
+          {!adminOpen && (
+            <button
+              onClick={() => {
+                setAdminOpen(true);
+                setEditingId(null);
+                setForm(EMPTY_FORM);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 20px",
+                borderRadius: 10,
+                border: "1.5px solid var(--accent)",
+                background: "transparent",
+                color: "var(--accent)",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                marginBottom: "1rem",
+              }}
+            >
+              <Plus size={16} /> Додати товар
             </button>
-            {editingId != null && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingId(null);
-                  setAdminForm({
-                    name: "",
-                    description: "",
-                    weight: "",
-                    price: "",
-                    imageName: "",
-                  });
+          )}
+
+          {adminOpen && (
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "0.5px solid var(--border)",
+                borderRadius: 16,
+                padding: "1.5rem",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "1.25rem",
                 }}
-                style={{ marginLeft: 8 }}
               >
-                Скасувати
-              </button>
-            )}
-          </form>
-        </section>
+                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
+                  {editingId != null ? "Редагування товару" : "Новий товар"}
+                </h2>
+                <button
+                  onClick={() => {
+                    setAdminOpen(false);
+                    setEditingId(null);
+                    setForm(EMPTY_FORM);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 13,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "0.5px solid var(--border-2)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "var(--text-2)",
+                  }}
+                >
+                  <X size={14} /> Скасувати
+                </button>
+              </div>
+
+              <form id="admin-product-form" onSubmit={handleSubmit}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "1rem",
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Назва товару *</label>
+                    <input
+                      placeholder="Наприклад: Суші-бокс"
+                      required
+                      value={form.name}
+                      onChange={f("name")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Категорія</label>
+                    <select
+                      value={form.category}
+                      onChange={f("category")}
+                      style={inputStyle}
+                    >
+                      <option value="">— без категорії —</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Нова категорія...</option>
+                    </select>
+                  </div>
+
+                  {isNewCategory && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        gridColumn: "2",
+                      }}
+                    >
+                      <label style={labelStyle}>Назва нової категорії</label>
+                      <input
+                        placeholder="Введи назву"
+                        value={form.customCategory}
+                        onChange={f("customCategory")}
+                        style={inputStyle}
+                      />
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      gridColumn: "1 / -1",
+                    }}
+                  >
+                    <label style={labelStyle}>Опис</label>
+                    <textarea
+                      placeholder="Короткий опис товару"
+                      value={form.description}
+                      onChange={f("description")}
+                      rows={2}
+                      style={{ ...inputStyle, resize: "vertical" }}
+                    />
+                  </div>
+
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Ціна (₴) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      required
+                      value={form.price}
+                      onChange={f("price")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Вага / об'єм</label>
+                    <input
+                      placeholder="Наприклад: 300г"
+                      value={form.weight}
+                      onChange={f("weight")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      gridColumn: "1 / -1",
+                    }}
+                  >
+                    <label style={labelStyle}>
+                      Назва зображення{" "}
+                      <span style={{ fontWeight: 400, color: "var(--text-2)" }}>
+                        (без розширення)
+                      </span>
+                    </label>
+                    <input
+                      placeholder="sushi-box-1"
+                      value={form.imageName}
+                      onChange={f("imageName")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Кнопка всередині grid — займає обидві колонки, знизу */}
+                  <div
+                    style={{
+                      gridColumn: "1 / -1",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      marginTop: 4,
+                    }}
+                  >
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 24px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: "var(--accent)",
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: saving ? "not-allowed" : "pointer",
+                        opacity: saving ? 0.6 : 1,
+                      }}
+                    >
+                      <Plus size={16} />
+                      {saving
+                        ? "Зберігаємо..."
+                        : editingId != null
+                          ? "Зберегти зміни"
+                          : "Додати товар"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
       )}
 
+      {/* ── Фільтр категорій ── */}
       {!hideFilter && categories.length > 0 && (
-        <CategoryFilter
-          categories={categories}
-          active={activeCategory}
-          onChange={setActiveCategory}
-        />
+        <div
+          style={
+            isAdmin ? undefined : { marginTop: "calc(80px * var(--scale))" }
+          }
+        >
+          <CategoryFilter
+            categories={categories}
+            active={activeCategory}
+            onChange={setActiveCategory}
+          />
+        </div>
       )}
 
-      <section className="catalog" id="catalog">
+      {/* ── Каталог ── */}
+      <section
+        className="catalog"
+        id="catalog"
+        style={
+          (!hideFilter && categories.length > 0) || isAdmin
+            ? { marginTop: 0 }
+            : undefined
+        }
+      >
         {loading &&
           Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
@@ -318,10 +530,14 @@ export default function ProductCatalog({
 
             return (
               <div
-                className={`product-card${isHidden && !isAdmin ? " product-card--hidden" : ""}`}
+                className="product-card"
                 data-id={p.id}
                 key={p.id}
-                style={{ position: "relative", cursor: "pointer" }}
+                style={{
+                  position: "relative",
+                  cursor: "pointer",
+                  opacity: isHidden && isAdmin ? 0.55 : 1,
+                }}
                 onClick={() => {
                   if (isAdmin) {
                     setOverlayProductId(
@@ -332,11 +548,6 @@ export default function ProductCatalog({
                   }
                 }}
               >
-                {/* Task 9: "unavailable" badge for hidden products (non-admin) */}
-                {isHidden && !isAdmin && (
-                  <div className="product-hidden-badge">Немає в наявності</div>
-                )}
-
                 <div className="product-img">
                   <img src={p.image || "/images/no-image.png"} alt={p.name} />
                 </div>
@@ -351,15 +562,9 @@ export default function ProductCatalog({
                     </span>
                     <button
                       className="add-btn"
-                      style={
-                        isHidden && !isAdmin
-                          ? { pointerEvents: "none", opacity: 0.4 }
-                          : undefined
-                      }
-                      disabled={isHidden && !isAdmin}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isAdmin) return; // admin click handled by card
+                        if (isAdmin) return;
                         addItem(
                           p.name,
                           p.price,
@@ -375,7 +580,7 @@ export default function ProductCatalog({
                   </div>
                 </div>
 
-                {/* Task 9: Admin overlay */}
+                {/* Admin overlay */}
                 {showOverlay && (
                   <div
                     className="admin-card-overlay"
@@ -393,7 +598,7 @@ export default function ProductCatalog({
                         handleEdit(p.id);
                       }}
                     >
-                      ✏️ Змінити
+                      <Pencil size={14} /> Змінити
                     </button>
                     <button
                       className="admin-overlay-btn admin-overlay-btn--danger"
@@ -404,7 +609,7 @@ export default function ProductCatalog({
                         setDeleteTarget(p);
                       }}
                     >
-                      🗑️ Видалити
+                      <Trash2 size={14} /> Видалити
                     </button>
                     <button
                       className="admin-overlay-btn"
@@ -431,7 +636,6 @@ export default function ProductCatalog({
           })}
       </section>
 
-      {/* ── Pagination ── */}
       {totalPages > 1 && (
         <div className="pagination">
           <button
@@ -442,7 +646,6 @@ export default function ProductCatalog({
           >
             <ChevronLeft size={18} />
           </button>
-
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <button
               key={p}
@@ -454,7 +657,6 @@ export default function ProductCatalog({
               {p}
             </button>
           ))}
-
           <button
             className="pagination-btn"
             onClick={() => goToPage(safePage + 1)}

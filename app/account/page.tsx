@@ -563,12 +563,16 @@ export default function AccountPage() {
                   className="account-item logout-item"
                   onClick={() => {
                     logout();
+                    document.cookie = "token=; path=/; max-age=0";
                     router.push("/login");
                   }}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) =>
-                    e.key === "Enter" && (logout(), router.push("/login"))
+                    e.key === "Enter" &&
+                    (logout(),
+                    (document.cookie = "token=; path=/; max-age=0"),
+                    router.push("/login"))
                   }
                   aria-label="Вийти з акаунту"
                 >

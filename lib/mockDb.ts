@@ -1,11 +1,3 @@
-/**
- * 🚧 MOCK BACKEND — in-memory database
- * Щоб прибрати: видали цей файл і всю папку app/api/
- * Потім підключи реальний бекенд через NEXT_PUBLIC_API_URL
- */
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface DBUser {
   id: number;
   email: string;
@@ -44,8 +36,6 @@ export interface DBOrder {
   total: number;
 }
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-
 const CATEGORIES = [
   "Напої",
   "Снеки",
@@ -59,7 +49,6 @@ const CATEGORIES = [
 
 function seedProducts(): DBProduct[] {
   const items: DBProduct[] = [
-    // Напої
     {
       id: 1,
       name: "Кава Americano",
@@ -1166,8 +1155,6 @@ function seedProducts(): DBProduct[] {
   return items;
 }
 
-// ─── In-Memory Store (singleton) ─────────────────────────────────────────────
-
 class MockDatabase {
   users: DBUser[] = [
     {
@@ -1242,18 +1229,15 @@ class MockDatabase {
   }
 
   getUserFromToken(token: string): DBUser | null {
-    // Try sessions map first
     const userId = this.sessions.get(token);
     if (userId) return this.users.find((u) => u.id === userId) ?? null;
 
-    // Fallback: decode userId from token format "mock_userId_timestamp_random"
-    // This handles hot-reload in dev when sessions Map is cleared
     if (token.startsWith("mock_")) {
       const id = parseInt(token.split("_")[1]);
       if (!isNaN(id)) {
         const user = this.users.find((u) => u.id === id);
         if (user) {
-          this.sessions.set(token, user.id); // re-register
+          this.sessions.set(token, user.id);
           return user;
         }
       }
@@ -1274,7 +1258,6 @@ class MockDatabase {
   }
 }
 
-// Module singleton — persists across HMR reloads in dev
 const globalForMock = globalThis as typeof globalThis & {
   _mockDb?: MockDatabase;
 };
