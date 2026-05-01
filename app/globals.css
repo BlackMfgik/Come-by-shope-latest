@@ -2081,9 +2081,6 @@ input::placeholder {
     width: 36px;
     height: 36px;
   }
-  .mobile-bottom-nav {
-    top: 60px;
-  }
 
   .nav-center {
     position: fixed;
