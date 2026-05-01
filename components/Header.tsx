@@ -60,7 +60,8 @@ export default function Header() {
   useEffect(() => {
     if (!searchOpen) return;
     const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest(".header-search-wrapper")) {
+      if (!(e.target as HTMLElement).closest(".header-search-wrapper") &&
+          !(e.target as HTMLElement).closest(".header-search-popup")) {
         setSearchOpen(false);
       }
     };
