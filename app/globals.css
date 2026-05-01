@@ -66,6 +66,7 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 html {
   scroll-behavior: smooth;
@@ -1489,6 +1490,7 @@ input::placeholder {
   min-height: calc(68px * var(--scale));
   width: 100%;
   box-sizing: border-box;
+  cursor: pointer;
 }
 .account-item:hover {
   background: var(--surface-2);
@@ -1522,6 +1524,29 @@ input::placeholder {
   color: var(--text-2);
   font-size: calc(0.82rem * var(--scale));
   line-height: 1.3;
+}
+
+/* Edit/arrow icon on the right side of account-item */
+.account-item > .account-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition:
+    color var(--tr),
+    background var(--tr),
+    border-color var(--tr);
+}
+.account-item:hover > .account-item-icon {
+  color: var(--accent);
+  background: var(--accent-glow);
+  border-color: var(--accent);
 }
 
 .edit-btn {
@@ -1574,6 +1599,8 @@ input::placeholder {
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
   transition: border-color var(--tr);
 }
 .order-card:hover {
@@ -1595,6 +1622,10 @@ input::placeholder {
   gap: 16px;
   text-align: left;
   transition: background var(--tr);
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 .order-card-header:hover {
   background: var(--surface-2);
@@ -1618,8 +1649,10 @@ input::placeholder {
 .order-card-right {
   display: flex;
   align-items: center;
-  gap: calc(12px * var(--scale));
+  gap: calc(8px * var(--scale));
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .order-status {
   color: #fff;
@@ -2170,6 +2203,10 @@ input::placeholder {
     right: 12px;
   }
 
+  header {
+    flex-wrap: nowrap;
+  }
+
   .account-page {
     flex-direction: column;
     padding: 74px 14px 40px;
@@ -2193,13 +2230,26 @@ input::placeholder {
     gap: 4px;
     white-space: nowrap;
   }
+  /* account-content base має width:0 для desktop flex-row.
+     На мобілці flex-direction:column — потрібно явно 100% */
+  .account-content {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+  }
   .account-content h1 {
     font-size: 1.4rem;
     white-space: nowrap;
   }
+  .item-info {
+    min-width: 0;
+    flex: 1;
+  }
   .item-info strong {
     font-size: 0.85rem;
-    white-space: nowrap;
+  }
+  .item-info p {
+    font-size: 0.78rem;
+    word-break: break-all;
   }
   .account-item {
     padding: 14px 16px;
@@ -3047,18 +3097,20 @@ input::placeholder {
   #admin-product-form > div {
     grid-template-columns: 1fr !important;
   }
-  #admin-product-form > div > div[style*="gridColumn: \"2\""],
+  #admin-product-form > div > div[style*='gridColumn: "2"'],
   #admin-product-form > div > div[style*='gridColumn: "2"'] {
     grid-column: 1 !important;
   }
-  #admin-product-form > div > div[style*="gridColumn: \"1 / -1\""],
+  #admin-product-form > div > div[style*='gridColumn: "1 / -1"'],
   #admin-product-form > div > div[style*='gridColumn: "1 / -1"'] {
     grid-column: 1 !important;
   }
 }
 
 /* Prevent horizontal overflow everywhere */
-img, svg, video {
+img,
+svg,
+video {
   max-width: 100%;
 }
 
