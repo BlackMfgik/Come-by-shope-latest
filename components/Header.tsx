@@ -14,8 +14,10 @@ import {
   InputGroupInput,
   SearchIcon,
 } from "./ui/input-group";
+import { useSearchStore } from "@/store/searchStore";
 
-const CART_SEARCH_PAGES = ["/", "/menu", "/shop", "/combo"];
+const SEARCH_PAGES = ["/", "/menu", "/shop", "/combo"];
+const CART_PAGES = ["/", "/menu", "/shop", "/combo", "/about-us"];
 
 const NAV_LINKS = [
   { href: "/", label: "Головна" },
@@ -30,15 +32,26 @@ export default function Header() {
   const { items } = useCartStore();
   const router = useRouter();
   const pathname = usePathname();
-  const showCartSearch = CART_SEARCH_PAGES.includes(pathname);
+  const showSearch = SEARCH_PAGES.includes(pathname);
+  const showCart = CART_PAGES.includes(pathname);
   // Task 10: hide user icon on /account page
   const isAccountPage = pathname === "/account";
+
+  const { setLiveQuery, clearQuery } = useSearchStore();
 
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Clear live search when navigating away from catalog pages
+  useEffect(() => {
+    if (!showSearch) {
+      clearQuery();
+      setSearchQuery("");
+    }
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cartCount = items.reduce((s, i) => s + i.quantity, 0);
 
@@ -60,8 +73,10 @@ export default function Header() {
   useEffect(() => {
     if (!searchOpen) return;
     const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest(".header-search-wrapper") &&
-          !(e.target as HTMLElement).closest(".header-search-popup")) {
+      if (
+        !(e.target as HTMLElement).closest(".header-search-wrapper") &&
+        !(e.target as HTMLElement).closest(".header-search-popup")
+      ) {
         setSearchOpen(false);
       }
     };
@@ -69,12 +84,28 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handler);
   }, [searchOpen]);
 
+  // Live update — fires on every keystroke
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setSearchQuery(val);
+    if (showSearch) {
+      // Already on a catalog page — filter in place, no navigation
+      setLiveQuery(val);
+    }
+  }
+
+  function handleSearchClear() {
+    setSearchQuery("");
+    setLiveQuery("");
+  }
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
+    if (!showSearch && searchQuery.trim()) {
+      // Not on a catalog page → navigate to /shop and filter there
+      router.push(`/shop`);
+      setLiveQuery(searchQuery.trim());
       setSearchOpen(false);
-      setSearchQuery("");
     }
   }
 
@@ -106,7 +137,7 @@ export default function Header() {
         </nav>
 
         <div className="icons">
-          {showCartSearch && (
+          {showSearch && (
             <div className="header-search-wrapper">
               <div
                 className={`header-search-popup${searchOpen ? " active" : ""}`}
@@ -122,13 +153,13 @@ export default function Header() {
                       type="text"
                       placeholder="Пошук..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={handleSearchChange}
                     />
                     {searchQuery && (
                       <InputGroupAddon align="inline-end">
                         <button
                           type="button"
-                          onClick={() => setSearchQuery("")}
+                          onClick={handleSearchClear}
                           style={{
                             background: "none",
                             border: "none",
@@ -159,7 +190,7 @@ export default function Header() {
             </div>
           )}
 
-          {showCartSearch && (
+          {showCart && (
             <div
               className="icons-shopping"
               style={{ position: "relative" }}

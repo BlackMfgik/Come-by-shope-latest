@@ -271,6 +271,7 @@ header > .burger {
   border-radius: 999px;
   transition: background var(--tr);
   flex-shrink: 0;
+  color: var(--text-2);
 }
 header > .burger:hover {
   background: var(--surface-2);
@@ -423,7 +424,7 @@ header > .burger img {
   display: none;
   align-items: center;
   justify-content: center;
-  color: var(--text);
+  color: var(--text-2);
   padding: calc(4px * var(--scale));
   border-radius: 50%;
   transition: background 0.2s;
@@ -690,11 +691,13 @@ button.halo {
 
 .cart-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* top-align so img & info line up at top */
   gap: 12px;
+  position: relative; /* anchor for the absolute remove button */
   background: var(--surface);
   border: 1px solid var(--border);
   padding: calc(10px * var(--scale)) calc(12px * var(--scale));
+  padding-top: calc(32px * var(--scale)); /* room for the corner × */
   border-radius: var(--radius);
   margin-bottom: calc(8px * var(--scale));
   transition: border-color var(--tr);
@@ -705,11 +708,16 @@ button.halo {
 .cart-item img {
   border-radius: 8px;
   object-fit: cover;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .cart-item-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .cart-item-info strong {
   display: block;
@@ -720,16 +728,17 @@ button.halo {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.cart-item-info span {
-  font-size: calc(0.8rem * var(--scale));
+.cart-item-price {
+  font-size: calc(0.82rem * var(--scale));
   color: var(--text-2);
 }
 
+/* Qty row: − [n] + — lives inside .cart-item-info */
 .cart-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 6px;
+  margin-top: 4px;
 }
 .qty-btn {
   background: var(--surface-2);
@@ -754,17 +763,47 @@ button.halo {
   border-color: var(--accent);
   color: #000;
 }
+/* Plus button gets a stronger accent tint so it reads as "add" */
+.qty-btn--plus {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.qty-btn--plus:hover {
+  background: var(--accent);
+  color: #000;
+}
+.qty-value {
+  min-width: calc(20px * var(--scale));
+  text-align: center;
+  font-size: calc(0.9rem * var(--scale));
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Remove button: absolute top-right corner */
 .remove-item {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   background: none;
   border: none;
-  font-size: calc(14px * var(--scale));
+  width: calc(22px * var(--scale));
+  height: calc(22px * var(--scale));
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(12px * var(--scale));
   color: var(--text-3);
   cursor: pointer;
-  padding: 2px 4px;
-  transition: color var(--tr);
+  transition:
+    color var(--tr),
+    background var(--tr);
+  padding: 0;
 }
 .remove-item:hover {
   color: var(--red);
+  background: color-mix(in srgb, var(--red, #e03e3e) 12%, transparent);
 }
 
 .cart-total {
@@ -919,7 +958,7 @@ button.halo {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: calc(20px * var(--scale));
+  margin-top: auto; /* pushes button row to bottom of card regardless of content */
 }
 .product-price {
   font-family: "Syne", sans-serif;
@@ -1136,6 +1175,107 @@ footer {
   font-size: calc(0.8rem * var(--scale));
   padding: calc(16px * var(--scale)) calc(24px * var(--scale));
   border-top: 1px solid var(--border);
+}
+
+/* ── Footer logo row (icon + brand side by side) ────────────────────────── */
+.footer-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Desktop: <details> behaves like a normal div (always visible) ───────── */
+@media (min-width: 768px) {
+  details.footer-contacts {
+    /* force content always visible on desktop */
+  }
+  details.footer-contacts > ul {
+    display: block !important;
+  }
+  details.footer-contacts > summary {
+    list-style: none;
+    pointer-events: none;
+    cursor: default;
+    display: block;
+    padding-top: 4px;
+  }
+  details.footer-contacts > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.footer-contacts > summary::marker {
+    display: none;
+    content: "";
+  }
+  details.footer-contacts .footer-chevron {
+    display: none;
+  }
+}
+
+/* ── Mobile: compact footer + working accordion ──────────────────────────── */
+@media (max-width: 767px) {
+  footer .footer-content {
+    flex-direction: column;
+    gap: 0;
+    padding: 18px 16px 6px;
+  }
+
+  footer .footer-logo {
+    gap: 6px;
+    padding-bottom: 14px;
+  }
+
+  /* Hide the tagline on mobile to save space */
+  footer .footer-desc {
+    display: none;
+  }
+
+  /* Accordion section */
+  details.footer-contacts {
+    border-top: 1px solid var(--border);
+  }
+
+  details.footer-contacts > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 0;
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+  }
+  details.footer-contacts > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.footer-contacts > summary::marker {
+    display: none;
+    content: "";
+  }
+
+  details.footer-contacts > summary b {
+    font-family: "Syne", sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  details.footer-contacts .footer-chevron {
+    color: var(--text-3);
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+  }
+  details.footer-contacts[open] .footer-chevron {
+    transform: rotate(180deg);
+  }
+
+  details.footer-contacts > ul {
+    padding: 2px 0 14px;
+  }
+
+  footer .footer-bottom {
+    margin-top: 6px;
+  }
 }
 
 .body-registration {
@@ -2086,6 +2226,45 @@ input::placeholder {
     background-size: 260px auto;
   }
 }
+
+/* ── Tablet header: compact nav to prevent logo overlap (769–1100px) ─────── */
+@media (min-width: 769px) and (max-width: 1100px) {
+  header {
+    padding: 0 14px;
+    gap: 6px;
+  }
+
+  /* Tighten logo so it gives nav room */
+  .logo {
+    font-size: 1.25rem;
+    gap: 7px;
+    flex-shrink: 0;
+  }
+  .logo-img {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Compress nav links — they stay visible but take less horizontal space */
+  .nav-center {
+    gap: 0;
+  }
+  .nav-center a {
+    padding: 7px 11px;
+    font-size: 0.84rem;
+  }
+
+  /* Tighten icon cluster too */
+  .icons {
+    gap: 2px;
+  }
+  .icons-shopping,
+  .icons-user {
+    width: 36px;
+    height: 36px;
+  }
+}
+
 @media (max-width: 768px) {
   :root {
     --scale: 1;
@@ -2847,7 +3026,7 @@ input::placeholder {
   flex: 1;
   padding: 4px 0;
   text-decoration: none;
-  color: var(--text-3, #888);
+  color: var(--text-2);
   transition: color var(--tr, 0.2s);
 }
 

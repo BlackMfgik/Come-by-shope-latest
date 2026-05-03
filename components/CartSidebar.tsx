@@ -96,33 +96,41 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
           ) : (
             items.map((item) => (
               <div className="cart-item" key={item.name}>
-                <img src={item.image} alt={item.name} width={45} height={45} />
+                {/* ✕ Remove — top-right corner, far from + */}
+                <button
+                  className="remove-item"
+                  onClick={() => removeItem(item.name)}
+                  aria-label="Видалити товар"
+                >
+                  ✕
+                </button>
+
+                <img src={item.image} alt={item.name} width={48} height={48} />
+
                 <div className="cart-item-info">
                   <strong>{item.name}</strong>
-                  <br />
-                  <span>
-                    {item.price.toFixed(2)} ₴ × {item.quantity}
+                  <span className="cart-item-price">
+                    {item.price.toFixed(2)} ₴
                   </span>
-                </div>
-                <div className="cart-controls">
-                  <button
-                    className="qty-btn"
-                    onClick={() => updateQty(item.name, -1)}
-                  >
-                    −
-                  </button>
-                  <button
-                    className="qty-btn"
-                    onClick={() => updateQty(item.name, 1)}
-                  >
-                    +
-                  </button>
-                  <button
-                    className="remove-item"
-                    onClick={() => removeItem(item.name)}
-                  >
-                    ✖
-                  </button>
+
+                  {/* Qty controls — spatially separated from remove */}
+                  <div className="cart-controls">
+                    <button
+                      className="qty-btn"
+                      onClick={() => updateQty(item.name, -1)}
+                      aria-label="Зменшити кількість"
+                    >
+                      −
+                    </button>
+                    <span className="qty-value">{item.quantity}</span>
+                    <button
+                      className="qty-btn qty-btn--plus"
+                      onClick={() => updateQty(item.name, 1)}
+                      aria-label="Збільшити кількість"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

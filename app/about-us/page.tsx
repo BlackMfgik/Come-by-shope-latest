@@ -17,7 +17,7 @@ export default function AboutPage() {
             Наша команда <span className="emoji">💕</span>
           </h1>
           <div className="team-image">
-            <img src="/images/cats.jpeg" alt="Наша команда" />
+            <img src="/images/no-image.jpeg" alt="Наша команда" />
           </div>
         </section>
       </main>

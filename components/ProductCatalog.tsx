@@ -28,6 +28,60 @@ import EmptyState from "@/components/ui/EmptyState";
 import CategoryFilter from "@/components/ui/CategoryFilter";
 import ProductQuickViewModal from "@/components/modals/ProductQuickViewModal";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
+import { useSearchStore } from "@/store/searchStore";
+
+// ─── Inline fuzzy search (no external deps) ──────────────────────────────────
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  let curr = new Array<number>(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] =
+        a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length];
+}
+
+function fuzzyWindowMatch(text: string, q: string): boolean {
+  if (q.length < 3) return false;
+  for (let len = Math.max(2, q.length - 1); len <= q.length + 1; len++) {
+    for (let i = 0; i <= text.length - len; i++) {
+      if (editDistance(text.slice(i, i + len), q) <= 1) return true;
+    }
+  }
+  return false;
+}
+
+function scoreProduct(p: Product, query: string): number {
+  if (!query.trim()) return 1;
+  const q = query.toLowerCase().trim();
+  const name = (p.name ?? "").toLowerCase();
+  const desc = (p.description ?? "").toLowerCase();
+  const cat = (p.category ?? "").toLowerCase();
+  if (name.includes(q)) return 1.0;
+  if (desc.includes(q) || cat.includes(q)) return 0.85;
+  const combined = name + " " + desc + " " + cat;
+  const words = q.split(/\s+/).filter(Boolean);
+  if (words.length > 1 && words.every((w) => combined.includes(w))) return 0.75;
+  if (!q.includes(" ") && fuzzyWindowMatch(name, q)) return 0.55;
+  return 0;
+}
+
+function fuzzyFilter(items: Product[], query: string): Product[] {
+  if (!query.trim()) return items;
+  return items
+    .map((item) => ({ item, score: scoreProduct(item, query) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ item }) => item);
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 8;
 
@@ -59,6 +113,9 @@ export default function ProductCatalog({
   const { user, token } = useAuthStore();
   const { addItem } = useCartStore();
   const { toast } = useToastStore();
+  const { liveQuery } = useSearchStore();
+  // Use live typing query if available; fall back to URL/prop query
+  const effectiveQuery = liveQuery || searchQuery;
 
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [loading, setLoading] = useState(false);
@@ -91,7 +148,7 @@ export default function ProductCatalog({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, activeCategory]);
+  }, [effectiveQuery, activeCategory]);
 
   async function loadProducts() {
     setLoading(true);
@@ -193,13 +250,13 @@ export default function ProductCatalog({
     ) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const filtered = products.filter((p) => {
+  // First apply category + admin visibility, then fuzzy-search
+  const categoryFiltered = products.filter((p) => {
     if (!isAdmin && p.hidden) return false;
-    const matchesSearch =
-      !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !activeCategory || p.category === activeCategory;
-    return matchesSearch && matchesCategory;
+    return !activeCategory || p.category === activeCategory;
   });
+
+  const filtered = fuzzyFilter(categoryFiltered, effectiveQuery);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -316,7 +373,8 @@ export default function ProductCatalog({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
                     gap: "1rem",
                   }}
                 >
@@ -513,10 +571,12 @@ export default function ProductCatalog({
         {!loading && !error && filtered.length === 0 && (
           <div style={{ gridColumn: "1/-1" }}>
             <EmptyState
-              title={searchQuery ? "Нічого не знайдено" : "Товарів поки немає"}
+              title={
+                effectiveQuery ? "Нічого не знайдено" : "Товарів поки немає"
+              }
               subtitle={
-                searchQuery
-                  ? `За запитом «${searchQuery}» нічого не знайдено`
+                effectiveQuery
+                  ? `За запитом «${effectiveQuery}» нічого не знайдено`
                   : "Поверніться пізніше — скоро буде більше~"
               }
             />
@@ -549,7 +609,7 @@ export default function ProductCatalog({
                 }}
               >
                 <div className="product-img">
-                  <img src={p.image || "/images/no-image.png"} alt={p.name} />
+                  <img src={p.image || "/images/no-image.jpeg"} alt={p.name} />
                 </div>
                 <div className="product-info">
                   <div>
@@ -568,7 +628,7 @@ export default function ProductCatalog({
                         addItem(
                           p.name,
                           p.price,
-                          p.image || "/images/no-image.png",
+                          p.image || "/images/no-image.jpeg",
                           p.description || "",
                           p.id,
                         );
