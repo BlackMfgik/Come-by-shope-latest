@@ -25,11 +25,13 @@ export default function SessionSync() {
     setHasHydrated(true);
 
     if (status === "authenticated" && session) {
-      // Синхронізуємо NextAuth сесію в Zustand
-      saveAuth(
-        session.accessToken ?? `nextauth_${session.user.id}`,
-        session.user,
-      );
+      // Синхронізуємо NextAuth сесію в Zustand.
+      // session.user.id — string (next-auth), але UserInfo.id — number,
+      // тому конвертуємо явно.
+      saveAuth(session.accessToken ?? `nextauth_${session.user.id}`, {
+        ...session.user,
+        id: Number(session.user.id),
+      });
     } else if (status === "unauthenticated") {
       logout();
     }
