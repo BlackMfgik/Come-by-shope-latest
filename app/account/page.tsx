@@ -4,12 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { useToastStore } from "@/store/toastStore";
-import {
-  apiUpdateProfile,
-  apiChangePassword,
-  apiUpdatePayment,
-  apiGetMyOrders,
-} from "@/lib/api";
+import { apiUpdateProfile, apiChangePassword, apiGetMyOrders } from "@/lib/api";
 import type { Order } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -18,6 +13,8 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import ChangeEmailModal from "@/components/modals/ChangeEmailModal";
 import ConfirmPasswordModal from "@/components/modals/ConfirmPasswordModal";
 import ForgotPasswordModal from "@/components/modals/ForgotPasswordModal";
+import PhoneVerifyModal from "@/components/modals/PhoneVerifyModal";
+import PaymentCardModal from "@/components/modals/PaymentCardModal";
 import {
   User,
   Mail,
@@ -32,6 +29,8 @@ import {
   Pencil,
   Package,
   ClipboardList,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 type Tab = "profile" | "orders";
@@ -46,7 +45,7 @@ const FIELD_LABELS: Record<Field, string> = {
   address: "Редагувати адресу",
 };
 
-// ─── EditModal ────────────────────────────────────────────────────────────────
+// ─── EditModal (для name / password / address) ────────────────────────────────
 
 interface EditModalProps {
   field: Field;
@@ -122,13 +121,6 @@ function EditModal({
                 type="text"
                 value={val}
                 onChange={(e) => setVal(e.target.value)}
-                onBlur={(e) => {
-                  if (
-                    !editContainerRef.current?.contains(e.relatedTarget as Node)
-                  ) {
-                    // don't close, user is still inside modal
-                  }
-                }}
               />
             </div>
           ) : (
@@ -177,7 +169,6 @@ function EditModal({
               id="modal-forgot"
               className="modal-forgot forgot-link"
               type="button"
-              aria-label="Забули пароль?"
               style={{ marginTop: 8, display: "block" }}
               onClick={() => {
                 onClose();
@@ -237,9 +228,7 @@ function OrderHistory({ token }: { token: string }) {
         title="Завантаження замовлень…"
       />
     );
-
   if (error) return <p style={{ color: "var(--red, #e53935)" }}>{error}</p>;
-
   if (orders.length === 0)
     return (
       <EmptyState
@@ -255,7 +244,6 @@ function OrderHistory({ token }: { token: string }) {
         const isDelivered =
           order.status === "Доставлено" || order.status === "delivered";
         const isOpen = openOrderId === order.id;
-
         return (
           <div key={order.id} className={`order-card${isOpen ? " open" : ""}`}>
             <button
@@ -285,7 +273,6 @@ function OrderHistory({ token }: { token: string }) {
                 </span>
               </div>
             </button>
-
             {isOpen && (
               <div className="order-card-body">
                 <div className="order-items">
@@ -329,7 +316,9 @@ function OrderHistory({ token }: { token: string }) {
 interface AccountItemProps {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value?: string;
+  /** Додатковий бейдж праворуч від label (напр. "✓ Верифіковано") */
+  badge?: React.ReactNode;
   field: Field;
   onEdit: (f: Field) => void;
   isArrow?: boolean;
@@ -339,6 +328,7 @@ function AccountItem({
   icon,
   label,
   value,
+  badge,
   field,
   onEdit,
   isArrow,
@@ -355,7 +345,10 @@ function AccountItem({
       <div className="item-info">
         <span className="account-item-icon">{icon}</span>
         <div>
-          <strong>{label}</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <strong>{label}</strong>
+            {badge}
+          </div>
           {value && <p>{value}</p>}
         </div>
       </div>
@@ -375,44 +368,43 @@ export default function AccountPage() {
   const [tab, setTab] = useState<Tab>("profile");
   const [editField, setEditField] = useState<Field | null>(null);
 
-  // Task 2 — change email modal
   const [changeEmailOpen, setChangeEmailOpen] = useState(false);
-  // Task 3 — confirm password before payment edit
   const [confirmPwOpen, setConfirmPwOpen] = useState(false);
-  // Task 5 — forgot password modal
   const [forgotOpen, setForgotOpen] = useState(false);
+  /** NEW: модал верифікації телефону */
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  /** NEW: модал додавання картки */
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [displayEmail, setDisplayEmail] = useState("");
   const [displayPhone, setDisplayPhone] = useState("");
+  const [displayPhoneVerified, setDisplayPhoneVerified] = useState(false);
   const [displayAddress, setDisplayAddress] = useState("");
-  const [displayPayment, setDisplayPayment] = useState("");
+  const [displayCardMasked, setDisplayCardMasked] = useState("");
+  const [displayCardType, setDisplayCardType] = useState("");
 
   useEffect(() => {
     if (!_hasHydrated) return;
     if (!user) {
       router.push("/login");
-    } else {
-      setDisplayName(user.name ?? "");
-      setDisplayEmail(user.email ?? "");
-      setDisplayPhone(user.phone ?? "");
-      setDisplayAddress(user.address ?? "");
-      setDisplayPayment(user.payment ?? "");
+      return;
     }
+    setDisplayName(user.name ?? "");
+    setDisplayEmail(user.email ?? "");
+    setDisplayPhone(user.phone ?? "");
+    setDisplayPhoneVerified(user.phone_verified ?? false);
+    setDisplayAddress(user.address ?? "");
+    setDisplayCardMasked(user.card_masked_pan ?? user.payment ?? "");
+    setDisplayCardType(user.card_type ?? "");
   }, [user, router, _hasHydrated]);
 
-  if (!_hasHydrated) return null;
-  if (!user) return null;
+  if (!_hasHydrated || !user) return null;
 
-  // Task 3 — masked payment display
-  function maskedPayment(raw: string): string {
-    if (!raw) return "Не вказано";
-    // If already masked or has last 4 digits
-    const digits = raw.replace(/\D/g, "");
-    if (digits.length >= 4) {
-      return "**** **** **** " + digits.slice(-4);
-    }
-    return raw;
+  function cardDisplay(): string {
+    if (!displayCardMasked) return "Не додано";
+    const type = displayCardType ? `${displayCardType} ` : "";
+    return `${type}${displayCardMasked}`;
   }
 
   function getCurrentValue(field: Field): string {
@@ -425,20 +417,19 @@ export default function AccountPage() {
         return displayPhone;
       case "address":
         return displayAddress;
-      case "payment":
-        return displayPayment;
-      case "password":
+      default:
         return "";
     }
   }
 
-  // Task 6 — clicking any field dispatches to correct handler
   function handleEditField(field: Field) {
     if (field === "email") {
-      // Task 2 — open ChangeEmailModal instead of inline
       setChangeEmailOpen(true);
+    } else if (field === "phone") {
+      // NEW: відкрити PhoneVerifyModal замість звичайного EditModal
+      setPhoneModalOpen(true);
     } else if (field === "payment") {
-      // Task 3 — confirm password before editing payment
+      // NEW: спочатку підтвердити пароль, потім відкрити PaymentCardModal
       setConfirmPwOpen(true);
     } else {
       setEditField(field);
@@ -454,19 +445,10 @@ export default function AccountPage() {
       if (field === "password" && extra && token) {
         await apiChangePassword(extra.old, extra.newPass, token);
         toast("Пароль змінено успішно");
-      } else if (field === "payment" && token) {
-        const updated = await apiUpdatePayment(val, token);
-        setDisplayPayment(val);
-        saveAuth(token, updated);
-        toast("Платіжні дані збережено");
-      } else if (
-        token &&
-        (field === "name" || field === "phone" || field === "address")
-      ) {
+      } else if (token && (field === "name" || field === "address")) {
         const updated = await apiUpdateProfile({ [field]: val }, token);
         saveAuth(token, updated);
         if (field === "name") setDisplayName(val);
-        if (field === "phone") setDisplayPhone(val);
         if (field === "address") setDisplayAddress(val);
         toast("Профіль оновлено");
       }
@@ -520,6 +502,7 @@ export default function AccountPage() {
                   field="name"
                   onEdit={handleEditField}
                 />
+
                 <AccountItem
                   icon={<Mail size={18} />}
                   label="Адреса ел. пошти"
@@ -527,33 +510,69 @@ export default function AccountPage() {
                   field="email"
                   onEdit={handleEditField}
                 />
+
+                {/* NEW: Телефон з бейджем верифікації */}
                 <AccountItem
                   icon={<Phone size={18} />}
                   label="Номер телефону"
-                  value={displayPhone}
+                  value={displayPhone || "Не вказано"}
                   field="phone"
                   onEdit={handleEditField}
+                  badge={
+                    displayPhone ? (
+                      displayPhoneVerified ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            fontSize: "0.72rem",
+                            color: "var(--accent, #009956)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <CheckCircle2 size={12} /> Верифіковано
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            fontSize: "0.72rem",
+                            color: "#e67e22",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <AlertCircle size={12} /> Не верифіковано
+                        </span>
+                      )
+                    ) : null
+                  }
                 />
+
                 <AccountItem
                   icon={<Lock size={18} />}
                   label="Змінити пароль"
-                  value=""
                   field="password"
                   onEdit={handleEditField}
                   isArrow
                 />
+
+                {/* NEW: Картка з відображенням типу */}
                 <AccountItem
                   icon={<CreditCard size={18} />}
-                  label="Способи оплати"
-                  value={maskedPayment(displayPayment)}
+                  label="Спосіб оплати"
+                  value={cardDisplay()}
                   field="payment"
                   onEdit={handleEditField}
                   isArrow
                 />
+
                 <AccountItem
                   icon={<MapPin size={18} />}
                   label="Адреса"
-                  value={displayAddress}
+                  value={displayAddress || "Не вказано"}
                   field="address"
                   onEdit={handleEditField}
                   isArrow
@@ -604,7 +623,7 @@ export default function AccountPage() {
         </section>
       </main>
 
-      {/* Task 4 fix: only non-email/payment fields use EditModal with blur fix */}
+      {/* Редагування імені / пароля / адреси */}
       {editField && (
         <EditModal
           field={editField}
@@ -615,33 +634,65 @@ export default function AccountPage() {
         />
       )}
 
-      {/* Task 2 — change email modal */}
+      {/* Зміна email */}
       {changeEmailOpen && token && (
         <ChangeEmailModal
           token={token}
           onClose={() => {
             setChangeEmailOpen(false);
-            // Refresh email from store
             if (user) setDisplayEmail(user.email ?? "");
           }}
         />
       )}
 
-      {/* Task 3 — confirm password before payment edit */}
+      {/* Підтвердження паролю перед платіжними даними */}
       {confirmPwOpen && token && (
         <ConfirmPasswordModal
           token={token}
           onSuccess={() => {
             setConfirmPwOpen(false);
-            setEditField("payment");
+            setPaymentModalOpen(true); // NEW: після підтвердження → картка
           }}
           onClose={() => setConfirmPwOpen(false)}
         />
       )}
 
-      {/* Task 5 — forgot password modal */}
+      {/* Забули пароль */}
       {forgotOpen && (
         <ForgotPasswordModal onClose={() => setForgotOpen(false)} />
+      )}
+
+      {/* NEW: Верифікація телефону */}
+      {phoneModalOpen && token && (
+        <PhoneVerifyModal
+          token={token}
+          currentPhone={displayPhone}
+          onSuccess={(updatedUser) => {
+            saveAuth(token, updatedUser);
+            setDisplayPhone(updatedUser.phone ?? "");
+            setDisplayPhoneVerified(updatedUser.phone_verified ?? false);
+            setPhoneModalOpen(false);
+            toast("Телефон підтверджено ✓");
+          }}
+          onClose={() => setPhoneModalOpen(false)}
+        />
+      )}
+
+      {/* NEW: Додавання картки */}
+      {paymentModalOpen && token && (
+        <PaymentCardModal
+          token={token}
+          onSuccess={(updatedUser) => {
+            saveAuth(token, updatedUser);
+            setDisplayCardMasked(
+              updatedUser.card_masked_pan ?? updatedUser.payment ?? "",
+            );
+            setDisplayCardType(updatedUser.card_type ?? "");
+            setPaymentModalOpen(false);
+            toast("Картку збережено ✓");
+          }}
+          onClose={() => setPaymentModalOpen(false)}
+        />
       )}
 
       <Footer />
