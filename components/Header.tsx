@@ -14,7 +14,7 @@ import {
   InputGroupInput,
   SearchIcon,
 } from "./ui/input-group";
-import { useSearchStore } from "@/store/searchStore";
+import { useSearchStore } from "@/store/searchStore.ts";
 
 const SEARCH_PAGES = ["/", "/menu", "/shop", "/combo"];
 const CART_PAGES = ["/", "/menu", "/shop", "/combo", "/about-us"];
