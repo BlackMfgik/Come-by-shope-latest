@@ -2,24 +2,41 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import GoogleIcon from "@/components/GoogleIcon";
-import { useAuthStore } from "@/store/authStore";
-import { apiLogin } from "@/lib/api";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ForgotPasswordModal from "@/components/modals/ForgotPasswordModal";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 
+// Карта помилок NextAuth → зрозумілі повідомлення
+const AUTH_ERRORS: Record<string, string> = {
+  CredentialsSignin: "Невірний email або пароль",
+  OAuthAccountNotLinked:
+    "Цей email вже використовується з іншим способом входу",
+  OAuthSignin: "Помилка входу через Google. Спробуйте ще раз",
+  SessionRequired: "Будь ласка, увійдіть в акаунт",
+  Default: "Сталася помилка. Спробуйте ще раз",
+};
+
 export default function LoginPage() {
-  const { saveAuth } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // callbackUrl — куди повернути після логіну (напр. /account)
+  const callbackUrl = searchParams.get("callbackUrl") || "/shop";
+  // NextAuth помилка з URL (?error=CredentialsSignin)
+  const urlError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    urlError ? (AUTH_ERRORS[urlError] ?? AUTH_ERRORS.Default) : "",
+  );
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -29,18 +46,34 @@ export default function LoginPage() {
       setError("Введіть email і пароль");
       return;
     }
+
     setLoading(true);
     try {
-      const data = await apiLogin(email, password);
-      saveAuth(data.token, data.user);
-      // Зберігаємо токен у cookie для серверної перевірки (напр. /admin)
-      document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
-      router.push("/shop");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Помилка входу");
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false, // обробляємо вручну
+      });
+
+      if (result?.error) {
+        setError(AUTH_ERRORS[result.error] ?? AUTH_ERRORS.Default);
+        return;
+      }
+
+      router.push(callbackUrl);
+      router.refresh(); // оновити серверні компоненти
+    } catch {
+      setError("Сталася помилка. Спробуйте ще раз");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    // redirect: true — NextAuth сам перенаправить на Google і назад
+    await signIn("google", { callbackUrl });
+    // setGoogleLoading(false) не потрібен — сторінка перезавантажиться
   }
 
   return (
@@ -101,10 +134,16 @@ export default function LoginPage() {
               {loading ? "Вхід..." : "Увійти"}
             </button>
 
+            {/* Google */}
             <div className="google-login">
-              <button id="google-login-btn" type="button">
+              <button
+                id="google-login-btn"
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleLoading}
+              >
                 <GoogleIcon size={20} />
-                Увійти через Google
+                {googleLoading ? "Перенаправляємо..." : "Увійти через Google"}
               </button>
             </div>
           </form>

@@ -3,15 +3,52 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/authStore";
-import { apiRegister } from "@/lib/api";
+import { signIn } from "next-auth/react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 
+// ── Індикатор сили пароля ───────────────────────────────────────────────────
+
+function getStrength(pw: string) {
+  let score = 0;
+  if (pw.length >= 6) score++;
+  if (pw.length >= 10) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  if (score <= 1) return { score, label: "Слабкий", color: "#e74c3c" };
+  if (score <= 2) return { score, label: "Середній", color: "#e67e22" };
+  if (score <= 3) return { score, label: "Хороший", color: "#f1c40f" };
+  return { score, label: "Надійний", color: "#27ae60" };
+}
+
+function PasswordStrength({ password }: { password: string }) {
+  const { score, label, color } = getStrength(password);
+  const bars = 4;
+  const filled = Math.ceil((score / 5) * bars);
+  return (
+    <div className="pw-strength">
+      <div className="pw-bars">
+        {Array.from({ length: bars }, (_, i) => (
+          <div
+            key={i}
+            className="pw-bar"
+            style={{ background: i < filled ? color : "var(--border)" }}
+          />
+        ))}
+      </div>
+      <span className="pw-label" style={{ color }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ── Сторінка реєстрації ─────────────────────────────────────────────────────
+
 export default function RegistrationPage() {
-  const { saveAuth } = useAuthStore();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -22,6 +59,7 @@ export default function RegistrationPage() {
   const [showCf, setShowCf] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,14 +73,49 @@ export default function RegistrationPage() {
 
     setLoading(true);
     try {
-      const data = await apiRegister(email.trim(), password, name.trim());
-      saveAuth(data.token, data.user);
+      // Крок 1: реєстрація через наш API
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Помилка реєстрації");
+        return;
+      }
+
+      // Крок 2: автоматичний вхід через NextAuth Credentials
+      const result = await signIn("credentials", {
+        email: email.trim(),
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(
+          "Реєстрація успішна, але не вдалося увійти. Спробуйте вручну.",
+        );
+        router.push("/login");
+        return;
+      }
+
       router.push("/account");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Помилка реєстрації");
+      router.refresh();
+    } catch {
+      setError("Помилка реєстрації. Спробуйте ще раз.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    await signIn("google", { callbackUrl: "/account" });
   }
 
   return (
@@ -110,7 +183,7 @@ export default function RegistrationPage() {
               {password && <PasswordStrength password={password} />}
             </div>
 
-            {/* Підтвердження пароля */}
+            {/* Підтвердження */}
             <div className="register-field">
               <label htmlFor="regConfirm">Підтвердіть пароль</label>
               <div className="register-input-wrap">
@@ -155,9 +228,16 @@ export default function RegistrationPage() {
             </button>
 
             <div className="google-login">
-              <button id="google-login-btn" type="button">
+              <button
+                id="google-login-btn"
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleLoading}
+              >
                 <GoogleIcon size={20} />
-                Зареєструватися через Google
+                {googleLoading
+                  ? "Перенаправляємо..."
+                  : "Зареєструватися через Google"}
               </button>
             </div>
           </form>
@@ -169,48 +249,5 @@ export default function RegistrationPage() {
       </main>
       <Footer />
     </>
-  );
-}
-
-// ── Індикатор сили пароля ──────────────────────────────────────────────────────
-
-function getStrength(pw: string): {
-  score: number;
-  label: string;
-  color: string;
-} {
-  let score = 0;
-  if (pw.length >= 6) score++;
-  if (pw.length >= 10) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-  if (score <= 1) return { score, label: "Слабкий", color: "#e74c3c" };
-  if (score <= 2) return { score, label: "Середній", color: "#e67e22" };
-  if (score <= 3) return { score, label: "Хороший", color: "#f1c40f" };
-  return { score, label: "Надійний", color: "#27ae60" };
-}
-
-function PasswordStrength({ password }: { password: string }) {
-  const { score, label, color } = getStrength(password);
-  const bars = 4;
-  const filled = Math.ceil((score / 5) * bars);
-
-  return (
-    <div className="pw-strength">
-      <div className="pw-bars">
-        {Array.from({ length: bars }, (_, i) => (
-          <div
-            key={i}
-            className="pw-bar"
-            style={{ background: i < filled ? color : "var(--border)" }}
-          />
-        ))}
-      </div>
-      <span className="pw-label" style={{ color }}>
-        {label}
-      </span>
-    </div>
   );
 }
