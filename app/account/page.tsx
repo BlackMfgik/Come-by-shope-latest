@@ -383,24 +383,9 @@ export default function AccountPage() {
   const [displayCardMasked, setDisplayCardMasked] = useState("");
   const [displayCardType, setDisplayCardType] = useState("");
 
-  useEffect(() => {
-    if (!_hasHydrated) return;
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-    setDisplayName(user.name ?? "");
-    setDisplayEmail(user.email ?? "");
-    setDisplayPhone(user.phone ?? "");
-    setDisplayPhoneVerified(user.phone_verified ?? false);
-    setDisplayAddress(user.address ?? "");
-    setDisplayCardMasked(user.card_masked_pan ?? user.payment ?? "");
-    setDisplayCardType(user.card_type ?? "");
-  }, [user, router, _hasHydrated]);
-
-  if (!_hasHydrated || !user) return null;
-
   // ─── TanStack Query: мутації профілю ─────────────────────────────────────
+  // ВАЖЛИВО: useMutation має бути ДО будь-якого умовного return,
+  // щоб не порушувати Rules of Hooks.
 
   const updateProfileMutation = useMutation({
     mutationFn: (data: Partial<UserInfo>) => apiUpdateProfile(data, token!),
@@ -429,6 +414,23 @@ export default function AccountPage() {
     },
     onError: (err: Error) => toast.error(err.message || "Невірний пароль"),
   });
+
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setDisplayName(user.name ?? "");
+    setDisplayEmail(user.email ?? "");
+    setDisplayPhone(user.phone ?? "");
+    setDisplayPhoneVerified(user.phone_verified ?? false);
+    setDisplayAddress(user.address ?? "");
+    setDisplayCardMasked(user.card_masked_pan ?? user.payment ?? "");
+    setDisplayCardType(user.card_type ?? "");
+  }, [user, router, _hasHydrated]);
+
+  if (!_hasHydrated || !user) return null;
 
   function handleEditField(field: Field) {
     if (field === "email") {
