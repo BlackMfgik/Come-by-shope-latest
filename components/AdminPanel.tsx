@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
-import { useToastStore } from "@/store/toastStore";
 import {
   apiGetProducts,
   apiGetProduct,
@@ -12,8 +12,127 @@ import {
   apiToggleProductVisibility,
 } from "@/lib/api";
 import type { Product } from "@/types";
-import { Pencil, Trash2, Eye, EyeOff, Plus, X } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  Plus,
+  X,
+  ShoppingBag,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Mail,
+  User,
+  Clock,
+  CheckCircle2,
+  Truck,
+  PackageCheck,
+  XCircle,
+  ChefHat,
+  Package,
+} from "lucide-react";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
+
+// ─── Типи ─────────────────────────────────────────────────────────────────────
+
+const ORDER_STATUSES = [
+  "Новий",
+  "Підтверджено",
+  "Готується",
+  "Передано кур'єру",
+  "В дорозі",
+  "Доставлено",
+  "Скасовано",
+] as const;
+
+type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+interface AdminOrder {
+  id: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  userPhone: string;
+  createdAt: string;
+  status: string;
+  items: Array<{
+    productId: number;
+    productName: string;
+    quantity: number;
+    price: number;
+  }>;
+  total: number;
+}
+
+// ─── Конфіг статусів ──────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<
+  OrderStatus,
+  {
+    color: string;
+    bg: string;
+    icon: React.ReactNode;
+    next: OrderStatus[];
+  }
+> = {
+  Новий: {
+    color: "#1565C0",
+    bg: "rgba(21,101,192,0.12)",
+    icon: <Clock size={13} />,
+    next: ["Підтверджено", "Скасовано"],
+  },
+  Підтверджено: {
+    color: "#7B1FA2",
+    bg: "rgba(123,31,162,0.12)",
+    icon: <CheckCircle2 size={13} />,
+    next: ["Готується", "Скасовано"],
+  },
+  Готується: {
+    color: "#E65100",
+    bg: "rgba(230,81,0,0.12)",
+    icon: <ChefHat size={13} />,
+    next: ["Передано кур'єру", "Скасовано"],
+  },
+  "Передано кур'єру": {
+    color: "#00695C",
+    bg: "rgba(0,105,92,0.12)",
+    icon: <Package size={13} />,
+    next: ["В дорозі"],
+  },
+  "В дорозі": {
+    color: "#009956",
+    bg: "rgba(0,153,86,0.12)",
+    icon: <Truck size={13} />,
+    next: ["Доставлено"],
+  },
+  Доставлено: {
+    color: "#2E7D32",
+    bg: "rgba(46,125,50,0.15)",
+    icon: <PackageCheck size={13} />,
+    next: [],
+  },
+  Скасовано: {
+    color: "#C62828",
+    bg: "rgba(198,40,40,0.12)",
+    icon: <XCircle size={13} />,
+    next: [],
+  },
+};
+
+function getStatusConfig(status: string) {
+  return (
+    STATUS_CONFIG[status as OrderStatus] ?? {
+      color: "#888",
+      bg: "rgba(128,128,128,0.1)",
+      icon: <Clock size={13} />,
+      next: [],
+    }
+  );
+}
+
+// ─── Стилі AdminPanel ─────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
   name: "",
@@ -74,11 +193,576 @@ function ActionBtn({
   );
 }
 
-export default function AdminPanel() {
-  // ── всі хуки ПЕРЕД будь-якими умовними return ──
-  const { user, token, _hasHydrated } = useAuthStore();
-  const { toast } = useToastStore();
+// ─── StatusBadge ──────────────────────────────────────────────────────────────
 
+function StatusBadge({ status }: { status: string }) {
+  const cfg = getStatusConfig(status);
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        padding: "3px 9px",
+        borderRadius: 99,
+        color: cfg.color,
+        background: cfg.bg,
+      }}
+    >
+      {cfg.icon} {status}
+    </span>
+  );
+}
+
+// ─── OrderCard ────────────────────────────────────────────────────────────────
+
+function OrderCard({
+  order,
+  onStatusChange,
+  updating,
+}: {
+  order: AdminOrder;
+  onStatusChange: (id: number, status: OrderStatus) => void;
+  updating: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const cfg = getStatusConfig(order.status);
+  const nextStatuses = cfg.next as OrderStatus[];
+
+  return (
+    <div
+      style={{
+        border: "0.5px solid var(--color-border-tertiary)",
+        borderRadius: 14,
+        overflow: "hidden",
+        background: "var(--color-background-primary)",
+      }}
+    >
+      {/* Заголовок картки */}
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "14px 18px",
+          cursor: "pointer",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: 14,
+                color: "var(--color-text-primary)",
+              }}
+            >
+              Замовлення #{order.id}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--color-text-secondary)",
+                marginTop: 2,
+              }}
+            >
+              {new Date(order.createdAt).toLocaleString("uk-UA")}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            <User
+              size={12}
+              style={{ color: "var(--color-text-secondary)", flexShrink: 0 }}
+            />
+            <span
+              style={{
+                fontSize: 13,
+                color: "var(--color-text-secondary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {order.userName}
+            </span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              color: "var(--color-text-primary)",
+            }}
+          >
+            {order.total.toFixed(2)} ₴
+          </span>
+          <StatusBadge status={order.status} />
+          {open ? (
+            <ChevronUp
+              size={16}
+              style={{ color: "var(--color-text-secondary)" }}
+            />
+          ) : (
+            <ChevronDown
+              size={16}
+              style={{ color: "var(--color-text-secondary)" }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Розгорнута частина */}
+      {open && (
+        <div
+          style={{
+            borderTop: "0.5px solid var(--color-border-tertiary)",
+            padding: "16px 18px",
+          }}
+        >
+          {/* Контакти замовника */}
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              flexWrap: "wrap",
+              padding: "10px 14px",
+              borderRadius: 10,
+              background: "var(--color-background-secondary)",
+              marginBottom: 14,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 13,
+              }}
+            >
+              <User
+                size={13}
+                style={{ color: "var(--color-text-secondary)" }}
+              />
+              <span
+                style={{ color: "var(--color-text-primary)", fontWeight: 500 }}
+              >
+                {order.userName}
+              </span>
+            </div>
+            {order.userPhone && (
+              <a
+                href={`tel:${order.userPhone}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "var(--color-text-secondary)",
+                  textDecoration: "none",
+                }}
+              >
+                <Phone size={13} />
+                {order.userPhone}
+              </a>
+            )}
+            {order.userEmail && (
+              <a
+                href={`mailto:${order.userEmail}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "var(--color-text-secondary)",
+                  textDecoration: "none",
+                }}
+              >
+                <Mail size={13} />
+                {order.userEmail}
+              </a>
+            )}
+          </div>
+
+          {/* Товари */}
+          <div style={{ marginBottom: 16 }}>
+            {order.items.map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "6px 0",
+                  borderBottom:
+                    idx < order.items.length - 1
+                      ? "0.5px solid var(--color-border-tertiary)"
+                      : "none",
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ color: "var(--color-text-primary)" }}>
+                  {item.productName}
+                  <span
+                    style={{
+                      color: "var(--color-text-secondary)",
+                      marginLeft: 6,
+                    }}
+                  >
+                    × {item.quantity}
+                  </span>
+                </span>
+                <span
+                  style={{
+                    fontWeight: 500,
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  {(item.price * item.quantity).toFixed(2)} ₴
+                </span>
+              </div>
+            ))}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: "0.5px solid var(--color-border-secondary)",
+                fontWeight: 700,
+                fontSize: 14,
+                color: "var(--color-text-primary)",
+              }}
+            >
+              <span>Разом</span>
+              <span>{order.total.toFixed(2)} ₴</span>
+            </div>
+          </div>
+
+          {/* Кнопки зміни статусу */}
+          {nextStatuses.length > 0 && (
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-text-secondary)",
+                  marginBottom: 8,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Змінити статус:
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {nextStatuses.map((s) => {
+                  const sCfg = getStatusConfig(s);
+                  const isCancelBtn = s === "Скасовано";
+                  return (
+                    <button
+                      key={s}
+                      disabled={updating}
+                      onClick={() => onStatusChange(order.id, s)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 14px",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        border: `1.5px solid ${isCancelBtn ? "rgba(198,40,40,0.4)" : sCfg.color}`,
+                        background: isCancelBtn ? "transparent" : sCfg.bg,
+                        color: sCfg.color,
+                        opacity: updating ? 0.5 : 1,
+                        transition: "opacity 0.15s",
+                      }}
+                    >
+                      {sCfg.icon} {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Фінальні статуси */}
+          {nextStatuses.length === 0 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                color: "var(--color-text-secondary)",
+                fontStyle: "italic",
+              }}
+            >
+              <StatusBadge status={order.status} />— статус фінальний, зміна
+              недоступна
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Фільтр замовлень ─────────────────────────────────────────────────────────
+
+function OrderFilters({
+  activeFilter,
+  onChange,
+  counts,
+}: {
+  activeFilter: string;
+  onChange: (s: string) => void;
+  counts: Record<string, number>;
+}) {
+  const all = ["Усі", ...ORDER_STATUSES];
+  return (
+    <div
+      style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}
+    >
+      {all.map((s) => {
+        const count =
+          s === "Усі"
+            ? Object.values(counts).reduce((a, b) => a + b, 0)
+            : (counts[s] ?? 0);
+        const isActive = activeFilter === s;
+        const cfg = s !== "Усі" ? getStatusConfig(s) : null;
+
+        return (
+          <button
+            key={s}
+            onClick={() => onChange(s)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "5px 12px",
+              borderRadius: 99,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              border: isActive
+                ? `1.5px solid ${cfg?.color ?? "var(--color-text-primary)"}`
+                : "0.5px solid var(--color-border-secondary)",
+              background: isActive
+                ? (cfg?.bg ?? "var(--color-background-secondary)")
+                : "transparent",
+              color: isActive
+                ? (cfg?.color ?? "var(--color-text-primary)")
+                : "var(--color-text-secondary)",
+            }}
+          >
+            {s !== "Усі" && cfg?.icon}
+            {s}
+            {count > 0 && (
+              <span
+                style={{
+                  background: isActive
+                    ? cfg?.color
+                    : "var(--color-border-secondary)",
+                  color: isActive ? "#fff" : "var(--color-text-secondary)",
+                  borderRadius: 99,
+                  padding: "0 5px",
+                  fontSize: 10,
+                  lineHeight: "16px",
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── OrdersTab ────────────────────────────────────────────────────────────────
+
+function OrdersTab({ token }: { token: string }) {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [filter, setFilter] = useState("Усі");
+  const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/orders/admin`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setOrders(await res.json());
+    } catch {
+      toast.error("Не вдалося завантажити замовлення");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function handleStatusChange(orderId: number, newStatus: OrderStatus) {
+    setUpdatingId(orderId);
+    try {
+      const res = await fetch(`${BASE}/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const updated: AdminOrder = await res.json();
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      toast(`Замовлення #${orderId} → ${newStatus}`);
+    } catch {
+      toast.error("Не вдалося змінити статус");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  const counts = useMemo(
+    () =>
+      orders.reduce<Record<string, number>>((acc, o) => {
+        acc[o.status] = (acc[o.status] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [orders],
+  );
+
+  const filtered =
+    filter === "Усі" ? orders : orders.filter((o) => o.status === filter);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          padding: "3rem",
+          color: "var(--color-text-secondary)",
+          fontSize: 14,
+        }}
+      >
+        Завантаження замовлень…
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+          Всього замовлень:{" "}
+          <strong style={{ color: "var(--color-text-primary)" }}>
+            {orders.length}
+          </strong>
+        </div>
+        <button
+          onClick={load}
+          style={{
+            fontSize: 12,
+            padding: "5px 12px",
+            borderRadius: 8,
+            cursor: "pointer",
+            border: "0.5px solid var(--color-border-secondary)",
+            background: "transparent",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          ↻ Оновити
+        </button>
+      </div>
+
+      <OrderFilters
+        activeFilter={filter}
+        onChange={setFilter}
+        counts={counts}
+      />
+
+      {filtered.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "3rem",
+            color: "var(--color-text-secondary)",
+            fontSize: 14,
+            border: "0.5px dashed var(--color-border-secondary)",
+            borderRadius: 14,
+          }}
+        >
+          <ShoppingBag size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+          <div>Немає замовлень зі статусом «{filter}»</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              onStatusChange={handleStatusChange}
+              updating={updatingId === order.id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AdminPanel (головний) ────────────────────────────────────────────────────
+
+type AdminTab = "products" | "orders";
+
+export default function AdminPanel() {
+  const { user, token, _hasHydrated } = useAuthStore();
+
+  const [activeTab, setActiveTab] = useState<AdminTab>("products");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -95,22 +779,17 @@ export default function AdminPanel() {
   const effectiveCategory = isNewCategory ? form.customCategory : form.category;
 
   useEffect(() => {
-    if (_hasHydrated && user?.admin) {
-      load();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (_hasHydrated && user?.admin) load();
   }, [_hasHydrated, user?.admin]);
 
-  // ── умовні return ПІСЛЯ хуків ──
-  if (!_hasHydrated) return null;
-  if (!user?.admin) return null;
+  if (!_hasHydrated || !user?.admin) return null;
 
   async function load() {
     setLoading(true);
     try {
       setProducts(await apiGetProducts());
     } catch {
-      toast("Не вдалося завантажити товари", "error");
+      toast.error("Не вдалося завантажити товари");
     } finally {
       setLoading(false);
     }
@@ -131,18 +810,17 @@ export default function AdminPanel() {
     try {
       if (editingId != null) {
         await apiUpdateProduct(editingId, payload, token);
-        toast("Товар оновлено ✓");
+        toast.success("Товар оновлено ✓");
         setEditingId(null);
       } else {
         await apiCreateProduct(payload, token);
-        toast("Товар додано ✓");
+        toast.success("Товар додано ✓");
       }
       setForm(EMPTY_FORM);
       await load();
     } catch (err: unknown) {
-      toast(
+      toast.error(
         err instanceof Error ? err.message : "Помилка при збереженні",
-        "error",
       );
     } finally {
       setSaving(false);
@@ -164,7 +842,7 @@ export default function AdminPanel() {
       setEditingId(id);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      toast("Не вдалося завантажити товар", "error");
+      toast.error("Не вдалося завантажити товар");
     }
   }
 
@@ -172,10 +850,10 @@ export default function AdminPanel() {
     if (!token) return;
     try {
       await apiDeleteProduct(id, token);
-      toast("Товар видалено");
+      toast.success("Товар видалено");
       await load();
     } catch {
-      toast("Не вдалося видалити товар", "error");
+      toast.error("Не вдалося видалити товар");
     }
   }
 
@@ -188,7 +866,7 @@ export default function AdminPanel() {
       );
       toast(p.hidden ? "Товар показано" : "Товар приховано");
     } catch {
-      toast("Не вдалося змінити видимість", "error");
+      toast.error("Не вдалося змінити видимість");
     }
   }
 
@@ -203,369 +881,446 @@ export default function AdminPanel() {
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "2rem 1rem" }}>
-      {/* ── Форма ── */}
+      {/* ── Таби ── */}
       <div
         style={{
-          background: "var(--color-background-primary)",
-          border: "0.5px solid var(--color-border-tertiary)",
-          borderRadius: 16,
-          padding: "1.5rem",
+          display: "flex",
+          gap: 4,
           marginBottom: "2rem",
+          borderBottom: "0.5px solid var(--color-border-tertiary)",
+          paddingBottom: 0,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
-            {editingId != null ? "Редагування товару" : "Новий товар"}
-          </h2>
-          {editingId != null && (
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setForm(EMPTY_FORM);
-              }}
+        {(
+          [
+            { id: "products", label: "Товари", icon: <Package size={15} /> },
+            {
+              id: "orders",
+              label: "Замовлення",
+              icon: <ShoppingBag size={15} />,
+            },
+          ] as { id: AdminTab; label: string; icon: React.ReactNode }[]
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              borderBottom:
+                activeTab === tab.id
+                  ? "2px solid var(--color-text-primary)"
+                  : "2px solid transparent",
+              color:
+                activeTab === tab.id
+                  ? "var(--color-text-primary)"
+                  : "var(--color-text-secondary)",
+              marginBottom: -1,
+            }}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Вміст: Товари ── */}
+      {activeTab === "products" && (
+        <>
+          {/* Форма */}
+          <div
+            style={{
+              background: "var(--color-background-primary)",
+              border: "0.5px solid var(--color-border-tertiary)",
+              borderRadius: 16,
+              padding: "1.5rem",
+              marginBottom: "2rem",
+            }}
+          >
+            <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                fontSize: 13,
-                padding: "6px 12px",
-                borderRadius: 8,
-                border: "0.5px solid var(--color-border-secondary)",
-                background: "transparent",
-                cursor: "pointer",
-                color: "var(--color-text-secondary)",
+                justifyContent: "space-between",
+                marginBottom: "1.25rem",
               }}
             >
-              <X size={14} /> Скасувати
-            </button>
-          )}
-        </div>
-
-        <form id="admin-product-form" onSubmit={handleSubmit}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "1rem",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={labelStyle}>Назва товару *</label>
-              <input
-                placeholder="Наприклад: Суші-бокс"
-                required
-                value={form.name}
-                onChange={f("name")}
-                style={inputStyle}
-              />
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
+                {editingId != null ? "Редагування товару" : "Новий товар"}
+              </h2>
+              {editingId != null && (
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm(EMPTY_FORM);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 13,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "0.5px solid var(--color-border-secondary)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  <X size={14} /> Скасувати
+                </button>
+              )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={labelStyle}>Категорія</label>
-              <select
-                value={form.category}
-                onChange={f("category")}
-                style={inputStyle}
-              >
-                <option value="">— без категорії —</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value="__new__">+ Нова категорія...</option>
-              </select>
-            </div>
-
-            {isNewCategory && (
+            <form id="admin-product-form" onSubmit={handleSubmit}>
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                  gridColumn: "2",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
                 }}
               >
-                <label style={labelStyle}>Назва нової категорії</label>
-                <input
-                  placeholder="Введи назву"
-                  value={form.customCategory}
-                  onChange={f("customCategory")}
-                  style={inputStyle}
-                />
-              </div>
-            )}
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                gridColumn: "1 / -1",
-              }}
-            >
-              <label style={labelStyle}>Опис</label>
-              <textarea
-                placeholder="Короткий опис товару"
-                value={form.description}
-                onChange={f("description")}
-                rows={2}
-                style={{ ...inputStyle, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={labelStyle}>Ціна (₴) *</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                required
-                value={form.price}
-                onChange={f("price")}
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={labelStyle}>Вага / об'єм</label>
-              <input
-                placeholder="Наприклад: 300г"
-                value={form.weight}
-                onChange={f("weight")}
-                style={inputStyle}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                gridColumn: "1 / -1",
-              }}
-            >
-              <label style={labelStyle}>
-                Назва зображення{" "}
-                <span
-                  style={{
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 400,
-                  }}
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
                 >
-                  (без розширення)
-                </span>
-              </label>
-              <input
-                placeholder="sushi-box-1"
-                value={form.imageName}
-                onChange={f("imageName")}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              marginTop: "1.25rem",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "10px 20px",
-              borderRadius: 10,
-              border: "none",
-              background: "var(--color-text-primary)",
-              color: "var(--color-background-primary)",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            <Plus size={16} />
-            {saving
-              ? "Зберігаємо..."
-              : editingId != null
-                ? "Зберегти зміни"
-                : "Додати товар"}
-          </button>
-        </form>
-      </div>
-
-      {/* ── Таблиця товарів ── */}
-      <div
-        style={{
-          background: "var(--color-background-primary)",
-          border: "0.5px solid var(--color-border-tertiary)",
-          borderRadius: 16,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "1rem 1.5rem",
-            borderBottom: "0.5px solid var(--color-border-tertiary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Товари</h2>
-          <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-            {products.length} позицій
-          </span>
-        </div>
-
-        {loading ? (
-          <div
-            style={{
-              padding: "2rem",
-              textAlign: "center",
-              color: "var(--color-text-secondary)",
-              fontSize: 14,
-            }}
-          >
-            Завантаження...
-          </div>
-        ) : (
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
-          >
-            <thead>
-              <tr style={{ background: "var(--color-background-secondary)" }}>
-                {["Фото", "Назва", "Категорія", "Ціна", "Статус", "Дії"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "left",
-                        fontWeight: 500,
-                        color: "var(--color-text-secondary)",
-                        borderBottom:
-                          "0.5px solid var(--color-border-tertiary)",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => (
-                <tr
-                  key={p.id}
-                  style={{
-                    borderBottom: "0.5px solid var(--color-border-tertiary)",
-                    opacity: p.hidden ? 0.5 : 1,
-                  }}
+                  <label style={labelStyle}>Назва товару *</label>
+                  <input
+                    placeholder="Наприклад: Суші-бокс"
+                    required
+                    value={form.name}
+                    onChange={f("name")}
+                    style={inputStyle}
+                  />
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
                 >
-                  <td style={{ padding: "10px 16px" }}>
-                    <img
-                      src={p.image || "/images/no-image.png"}
-                      alt={p.name}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        objectFit: "cover",
-                        borderRadius: 8,
-                      }}
+                  <label style={labelStyle}>Категорія</label>
+                  <select
+                    value={form.category}
+                    onChange={f("category")}
+                    style={inputStyle}
+                  >
+                    <option value="">— без категорії —</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="__new__">+ Нова категорія...</option>
+                  </select>
+                </div>
+                {isNewCategory && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      gridColumn: "2",
+                    }}
+                  >
+                    <label style={labelStyle}>Назва нової категорії</label>
+                    <input
+                      placeholder="Введи назву"
+                      value={form.customCategory}
+                      onChange={f("customCategory")}
+                      style={inputStyle}
                     />
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 16px",
-                      fontWeight: 500,
-                      color: "var(--color-text-primary)",
-                    }}
-                  >
-                    {p.name}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 16px",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    {p.category ? (
-                      <span
-                        style={{
-                          background: "var(--color-background-secondary)",
-                          padding: "2px 8px",
-                          borderRadius: 99,
-                          fontSize: 11,
-                        }}
-                      >
-                        {p.category}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px 16px",
-                      color: "var(--color-text-primary)",
-                    }}
-                  >
-                    {Number(p.price).toFixed(2)} ₴
-                  </td>
-                  <td style={{ padding: "10px 16px" }}>
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    gridColumn: "1 / -1",
+                  }}
+                >
+                  <label style={labelStyle}>Опис</label>
+                  <textarea
+                    placeholder="Короткий опис товару"
+                    value={form.description}
+                    onChange={f("description")}
+                    rows={2}
+                    style={{ ...inputStyle, resize: "vertical" }}
+                  />
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  <label style={labelStyle}>Ціна (₴) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
+                    value={form.price}
+                    onChange={f("price")}
+                    style={inputStyle}
+                  />
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  <label style={labelStyle}>Вага / об'єм</label>
+                  <input
+                    placeholder="Наприклад: 300г"
+                    value={form.weight}
+                    onChange={f("weight")}
+                    style={inputStyle}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    gridColumn: "1 / -1",
+                  }}
+                >
+                  <label style={labelStyle}>
+                    Назва зображення{" "}
                     <span
                       style={{
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        borderRadius: 99,
-                        background: p.hidden
-                          ? "var(--color-background-secondary)"
-                          : "#EAF3DE",
-                        color: p.hidden
-                          ? "var(--color-text-secondary)"
-                          : "#3B6D11",
+                        color: "var(--color-text-secondary)",
+                        fontWeight: 400,
                       }}
                     >
-                      {p.hidden ? "Приховано" : "Видимий"}
+                      (без розширення)
                     </span>
-                  </td>
-                  <td style={{ padding: "10px 16px" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <ActionBtn
-                        onClick={() => handleEdit(p.id)}
-                        title="Редагувати"
+                  </label>
+                  <input
+                    placeholder="sushi-box-1"
+                    value={form.imageName}
+                    onChange={f("imageName")}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  marginTop: "1.25rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--color-text-primary)",
+                  color: "var(--color-background-primary)",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                <Plus size={16} />
+                {saving
+                  ? "Зберігаємо..."
+                  : editingId != null
+                    ? "Зберегти зміни"
+                    : "Додати товар"}
+              </button>
+            </form>
+          </div>
+
+          {/* Таблиця товарів */}
+          <div
+            style={{
+              background: "var(--color-background-primary)",
+              border: "0.5px solid var(--color-border-tertiary)",
+              borderRadius: 16,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "1rem 1.5rem",
+                borderBottom: "0.5px solid var(--color-border-tertiary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
+                Товари
+              </h2>
+              <span
+                style={{ fontSize: 13, color: "var(--color-text-secondary)" }}
+              >
+                {products.length} позицій
+              </span>
+            </div>
+            {loading ? (
+              <div
+                style={{
+                  padding: "2rem",
+                  textAlign: "center",
+                  color: "var(--color-text-secondary)",
+                  fontSize: 14,
+                }}
+              >
+                Завантаження...
+              </div>
+            ) : (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{ background: "var(--color-background-secondary)" }}
+                  >
+                    {[
+                      "Фото",
+                      "Назва",
+                      "Категорія",
+                      "Ціна",
+                      "Статус",
+                      "Дії",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "10px 16px",
+                          textAlign: "left",
+                          fontWeight: 500,
+                          color: "var(--color-text-secondary)",
+                          borderBottom:
+                            "0.5px solid var(--color-border-tertiary)",
+                        }}
                       >
-                        <Pencil size={14} />
-                      </ActionBtn>
-                      <ActionBtn
-                        onClick={() => handleToggle(p)}
-                        title={p.hidden ? "Показати" : "Приховати"}
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr
+                      key={p.id}
+                      style={{
+                        borderBottom:
+                          "0.5px solid var(--color-border-tertiary)",
+                        opacity: p.hidden ? 0.5 : 1,
+                      }}
+                    >
+                      <td style={{ padding: "10px 16px" }}>
+                        <img
+                          src={p.image || "/images/no-image.png"}
+                          alt={p.name}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                          }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 16px",
+                          fontWeight: 500,
+                          color: "var(--color-text-primary)",
+                        }}
                       >
-                        {p.hidden ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </ActionBtn>
-                      <ActionBtn
-                        onClick={() => setDeleteTarget(p)}
-                        title="Видалити"
-                        danger
+                        {p.name}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 16px",
+                          color: "var(--color-text-secondary)",
+                        }}
                       >
-                        <Trash2 size={14} />
-                      </ActionBtn>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                        {p.category ? (
+                          <span
+                            style={{
+                              background: "var(--color-background-secondary)",
+                              padding: "2px 8px",
+                              borderRadius: 99,
+                              fontSize: 11,
+                            }}
+                          >
+                            {p.category}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 16px",
+                          color: "var(--color-text-primary)",
+                        }}
+                      >
+                        {Number(p.price).toFixed(2)} ₴
+                      </td>
+                      <td style={{ padding: "10px 16px" }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 8px",
+                            borderRadius: 99,
+                            background: p.hidden
+                              ? "var(--color-background-secondary)"
+                              : "#EAF3DE",
+                            color: p.hidden
+                              ? "var(--color-text-secondary)"
+                              : "#3B6D11",
+                          }}
+                        >
+                          {p.hidden ? "Приховано" : "Видимий"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 16px" }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <ActionBtn
+                            onClick={() => handleEdit(p.id)}
+                            title="Редагувати"
+                          >
+                            <Pencil size={14} />
+                          </ActionBtn>
+                          <ActionBtn
+                            onClick={() => handleToggle(p)}
+                            title={p.hidden ? "Показати" : "Приховати"}
+                          >
+                            {p.hidden ? (
+                              <Eye size={14} />
+                            ) : (
+                              <EyeOff size={14} />
+                            )}
+                          </ActionBtn>
+                          <ActionBtn
+                            onClick={() => setDeleteTarget(p)}
+                            title="Видалити"
+                            danger
+                          >
+                            <Trash2 size={14} />
+                          </ActionBtn>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Вміст: Замовлення ── */}
+      {activeTab === "orders" && token && <OrdersTab token={token} />}
 
       {deleteTarget && (
         <ConfirmDeleteModal

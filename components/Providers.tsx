@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useThemeStore } from "@/store/themeStore";
-import Toast from "@/components/Toast";
+import { Toaster } from "sonner";
+import QueryProvider from "@/components/QueryProvider";
 import MobileBottomNav from "@/components/MobileBottomNav";
 
 function ThemeInitializer() {
@@ -15,12 +15,23 @@ function ThemeInitializer() {
 }
 
 export default function Providers({ children }: { children: ReactNode }) {
+  const theme = useThemeStore((s) => s.theme);
+
   return (
-    <>
+    <QueryProvider>
       <ThemeInitializer />
       {children}
-      <Toast />
+      <Toaster
+        theme={theme === "dark" ? "dark" : "light"}
+        position="bottom-right"
+        richColors
+        closeButton
+        toastOptions={{
+          style: { fontFamily: "var(--font-dm-sans, inherit)", borderRadius: "12px" },
+          duration: 3800,
+        }}
+      />
       <MobileBottomNav />
-    </>
+    </QueryProvider>
   );
 }

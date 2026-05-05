@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { X, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
-import { useToastStore } from "@/store/toastStore";
+import { toast } from "sonner";
 import type { Product } from "@/types";
 
-// ── Lightbox ────────────────────────────────────────────────────────────────
 function Lightbox({
   src,
   alt,
@@ -17,7 +16,6 @@ function Lightbox({
   onClose: () => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
-
   return (
     <div
       className="lightbox-overlay"
@@ -45,7 +43,6 @@ function Lightbox({
   );
 }
 
-// ── QuickView ────────────────────────────────────────────────────────────────
 interface Props {
   product: Product;
   onClose: () => void;
@@ -53,7 +50,6 @@ interface Props {
 
 export default function ProductQuickViewModal({ product, onClose }: Props) {
   const { addItem } = useCartStore();
-  const { toast } = useToastStore();
   const [lightbox, setLightbox] = useState(false);
   const imgSrc = product.image || "/images/no-image.png";
 
@@ -65,7 +61,7 @@ export default function ProductQuickViewModal({ product, onClose }: Props) {
       product.description || "",
       product.id,
     );
-    toast(`${product.name} додано до кошика 🛒`);
+    toast.success(`${product.name} додано до кошика 🛒`);
     onClose();
   }
 
@@ -86,9 +82,7 @@ export default function ProductQuickViewModal({ product, onClose }: Props) {
           >
             <X size={16} />
           </button>
-
           <div className="quick-view-grid">
-            {/* Image */}
             <div
               className="quick-view-img"
               onClick={() => setLightbox(true)}
@@ -101,8 +95,6 @@ export default function ProductQuickViewModal({ product, onClose }: Props) {
                 <Maximize2 size={16} />
               </span>
             </div>
-
-            {/* Info */}
             <div className="quick-view-info">
               <h3 id="qv-title" className="quick-view-name">
                 {product.name}
@@ -125,7 +117,6 @@ export default function ProductQuickViewModal({ product, onClose }: Props) {
           </div>
         </div>
       </div>
-
       {lightbox && (
         <Lightbox
           src={imgSrc}

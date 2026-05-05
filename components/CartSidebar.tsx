@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { apiCreateOrder } from "@/lib/api";
-import { useToastStore } from "@/store/toastStore";
+import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
 import OrderModal from "./OrderModal";
 import LoginRequiredModal from "./modals/LoginRequiredModal";
@@ -19,7 +19,6 @@ interface Props {
 export default function CartSidebar({ isOpen, onClose }: Props) {
   const { items, updateQty, removeItem, total, clearCart } = useCartStore();
   const { token, user } = useAuthStore();
-  const { toast } = useToastStore();
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
@@ -51,7 +50,7 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
       .filter((i) => i.id != null && i.quantity > 0)
       .map((i) => ({ productId: i.id!, quantity: i.quantity }));
     if (!validItems.length) {
-      toast("Кошик порожній", "info");
+      toast.info("Кошик порожній");
       return;
     }
     try {
@@ -63,11 +62,10 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
       setSuccessTotal(orderTotal);
       setSuccessModal(true);
     } catch (err: unknown) {
-      toast(
+      toast.error(
         err instanceof Error
           ? err.message
           : "Помилка при оформленні замовлення",
-        "error",
       );
     }
   }
@@ -96,7 +94,6 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
           ) : (
             items.map((item) => (
               <div className="cart-item" key={item.name}>
-                {/* ✕ Remove — top-right corner, far from + */}
                 <button
                   className="remove-item"
                   onClick={() => removeItem(item.name)}
@@ -113,7 +110,6 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
                     {item.price.toFixed(2)} ₴
                   </span>
 
-                  {/* Qty controls — spatially separated from remove */}
                   <div className="cart-controls">
                     <button
                       className="qty-btn"

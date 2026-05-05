@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X, Mail } from "lucide-react";
 import { apiRequestEmailChange, apiConfirmEmailChange } from "@/lib/api";
-import { useToastStore } from "@/store/toastStore";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 
 interface Props {
@@ -13,7 +13,6 @@ interface Props {
 
 export default function ChangeEmailModal({ token, onClose }: Props) {
   const { saveAuth } = useAuthStore();
-  const { toast } = useToastStore();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [newEmail, setNewEmail] = useState("");
@@ -56,7 +55,7 @@ export default function ChangeEmailModal({ token, onClose }: Props) {
         token,
       );
       saveAuth(token, updatedUser);
-      toast("Email змінено~");
+      toast.success("Email змінено~");
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Невірний код");

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
-import { useToastStore } from "@/store/toastStore";
+import { toast } from "sonner";
 import { apiUpdateProfile, apiChangePassword, apiGetMyOrders } from "@/lib/api";
-import type { Order } from "@/types";
+import type { Order, UserInfo } from "@/types";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EmptyState from "@/components/ui/EmptyState";
@@ -45,7 +46,7 @@ const FIELD_LABELS: Record<Field, string> = {
   address: "Редагувати адресу",
 };
 
-// ─── EditModal (для name / password / address) ────────────────────────────────
+// ─── EditModal ────────────────────────────────────────────────────────────────
 
 interface EditModalProps {
   field: Field;
@@ -53,6 +54,7 @@ interface EditModalProps {
   onSave: (val: string, extra?: { old: string; newPass: string }) => void;
   onClose: () => void;
   onForgotPassword?: () => void;
+  saving?: boolean;
 }
 
 function EditModal({
@@ -61,13 +63,13 @@ function EditModal({
   onSave,
   onClose,
   onForgotPassword,
+  saving,
 }: EditModalProps) {
   const [val, setVal] = useState(currentValue);
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confPw, setConfPw] = useState("");
   const [err, setErr] = useState("");
-  const editContainerRef = useRef<HTMLDivElement>(null);
 
   function handleSave() {
     setErr("");
@@ -102,104 +104,99 @@ function EditModal({
         </button>
         <h3 id="modal-title">{FIELD_LABELS[field]}</h3>
 
-        <div ref={editContainerRef}>
-          {field === "address" ? (
-            <div id="modal-row-single">
-              <AddressAutocomplete
-                value={val}
-                onChange={setVal}
-                placeholder="Введіть адресу доставки"
-                id="modal-address-input"
-                className="modal-input"
-              />
-            </div>
-          ) : field !== "password" ? (
-            <div id="modal-row-single">
-              <input
-                id="modal-input"
-                className="modal-input"
-                type="text"
-                value={val}
-                onChange={(e) => setVal(e.target.value)}
-              />
-            </div>
-          ) : (
-            <div id="modal-row-password">
-              <input
-                id="modal-old"
-                className="modal-input"
-                type="password"
-                placeholder="Старий пароль"
-                value={oldPw}
-                onChange={(e) => setOldPw(e.target.value)}
-              />
-              <input
-                id="modal-new"
-                className="modal-input"
-                type="password"
-                placeholder="Новий пароль"
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-              />
-              <input
-                id="modal-confirm"
-                className="modal-input"
-                type="password"
-                placeholder="Повторіть новий пароль"
-                value={confPw}
-                onChange={(e) => setConfPw(e.target.value)}
-              />
-              {err && (
-                <div
-                  id="modal-error"
-                  style={{
-                    color: "#c0392b",
-                    fontSize: "0.95rem",
-                    marginTop: 6,
-                  }}
-                >
-                  {err}
-                </div>
-              )}
-            </div>
-          )}
-
-          {field === "password" && (
-            <button
-              id="modal-forgot"
-              className="modal-forgot forgot-link"
-              type="button"
-              style={{ marginTop: 8, display: "block" }}
-              onClick={() => {
-                onClose();
-                onForgotPassword?.();
-              }}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              Забули пароль?
-            </button>
-          )}
-
-          <div className="modal-buttons">
-            <button
-              id="modal-cancel"
-              className="btn btn-secondary"
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onClose}
-            >
-              Скасувати
-            </button>
-            <button
-              id="modal-save"
-              className="btn btn-primary"
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleSave}
-            >
-              Зберегти
-            </button>
+        {field === "address" ? (
+          <div id="modal-row-single">
+            <AddressAutocomplete
+              value={val}
+              onChange={setVal}
+              placeholder="Введіть адресу доставки"
+              id="modal-address-input"
+              className="modal-input"
+            />
           </div>
+        ) : field !== "password" ? (
+          <div id="modal-row-single">
+            <input
+              id="modal-input"
+              className="modal-input"
+              type="text"
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div id="modal-row-password">
+            <input
+              id="modal-old"
+              className="modal-input"
+              type="password"
+              placeholder="Старий пароль"
+              value={oldPw}
+              onChange={(e) => setOldPw(e.target.value)}
+            />
+            <input
+              id="modal-new"
+              className="modal-input"
+              type="password"
+              placeholder="Новий пароль"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+            />
+            <input
+              id="modal-confirm"
+              className="modal-input"
+              type="password"
+              placeholder="Повторіть новий пароль"
+              value={confPw}
+              onChange={(e) => setConfPw(e.target.value)}
+            />
+            {err && (
+              <div
+                id="modal-error"
+                style={{ color: "#c0392b", fontSize: "0.95rem", marginTop: 6 }}
+              >
+                {err}
+              </div>
+            )}
+          </div>
+        )}
+
+        {field === "password" && (
+          <button
+            id="modal-forgot"
+            className="modal-forgot forgot-link"
+            type="button"
+            style={{ marginTop: 8, display: "block" }}
+            onClick={() => {
+              onClose();
+              onForgotPassword?.();
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            Забули пароль?
+          </button>
+        )}
+
+        <div className="modal-buttons">
+          <button
+            id="modal-cancel"
+            className="btn btn-secondary"
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onClose}
+          >
+            Скасувати
+          </button>
+          <button
+            id="modal-save"
+            className="btn btn-primary"
+            type="button"
+            disabled={saving}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleSave}
+          >
+            {saving ? "Зберігаємо…" : "Зберегти"}
+          </button>
         </div>
       </div>
     </div>
@@ -209,26 +206,32 @@ function EditModal({
 // ─── OrderHistory ─────────────────────────────────────────────────────────────
 
 function OrderHistory({ token }: { token: string }) {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [openOrderId, setOpenOrderId] = useState<number | null>(null);
 
-  useEffect(() => {
-    apiGetMyOrders(token)
-      .then((data) => setOrders(data))
-      .catch(() => setError("Не вдалося завантажити замовлення"))
-      .finally(() => setLoading(false));
-  }, [token]);
+  // TanStack Query — кешує замовлення, не перезавантажує при переключенні табів
+  const {
+    data: orders = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["orders", token],
+    queryFn: () => apiGetMyOrders(token),
+    staleTime: 30_000,
+  });
 
-  if (loading)
+  if (isLoading)
     return (
       <EmptyState
         icon={<ClipboardList size={36} strokeWidth={1.5} />}
         title="Завантаження замовлень…"
       />
     );
-  if (error) return <p style={{ color: "var(--red, #e53935)" }}>{error}</p>;
+  if (isError)
+    return (
+      <p style={{ color: "var(--red, #e53935)" }}>
+        Не вдалося завантажити замовлення
+      </p>
+    );
   if (orders.length === 0)
     return (
       <EmptyState
@@ -250,7 +253,6 @@ function OrderHistory({ token }: { token: string }) {
               className="order-card-header"
               onClick={() => setOpenOrderId(isOpen ? null : order.id)}
               aria-expanded={isOpen}
-              aria-label={`Деталі замовлення #${order.id}`}
             >
               <div className="order-card-left">
                 <span className="order-number">Замовлення #{order.id}</span>
@@ -317,7 +319,6 @@ interface AccountItemProps {
   icon: React.ReactNode;
   label: string;
   value?: string;
-  /** Додатковий бейдж праворуч від label (напр. "✓ Верифіковано") */
   badge?: React.ReactNode;
   field: Field;
   onEdit: (f: Field) => void;
@@ -363,7 +364,7 @@ function AccountItem({
 
 export default function AccountPage() {
   const { user, token, saveAuth, logout, _hasHydrated } = useAuthStore();
-  const { toast } = useToastStore();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [editField, setEditField] = useState<Field | null>(null);
@@ -371,9 +372,7 @@ export default function AccountPage() {
   const [changeEmailOpen, setChangeEmailOpen] = useState(false);
   const [confirmPwOpen, setConfirmPwOpen] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
-  /** NEW: модал верифікації телефону */
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
-  /** NEW: модал додавання картки */
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -401,65 +400,71 @@ export default function AccountPage() {
 
   if (!_hasHydrated || !user) return null;
 
-  function cardDisplay(): string {
-    if (!displayCardMasked) return "Не додано";
-    const type = displayCardType ? `${displayCardType} ` : "";
-    return `${type}${displayCardMasked}`;
-  }
+  // ─── TanStack Query: мутації профілю ─────────────────────────────────────
 
-  function getCurrentValue(field: Field): string {
-    switch (field) {
-      case "name":
-        return displayName;
-      case "email":
-        return displayEmail;
-      case "phone":
-        return displayPhone;
-      case "address":
-        return displayAddress;
-      default:
-        return "";
-    }
-  }
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: Partial<UserInfo>) => apiUpdateProfile(data, token!),
+    onSuccess: (updated) => {
+      saveAuth(token!, updated);
+      setDisplayName(updated.name ?? "");
+      setDisplayAddress(updated.address ?? "");
+      toast.success("Профіль оновлено");
+      setEditField(null);
+    },
+    onError: (err: Error) =>
+      toast.error(err.message || "Помилка при збереженні"),
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: ({
+      oldPassword,
+      newPassword,
+    }: {
+      oldPassword: string;
+      newPassword: string;
+    }) => apiChangePassword(oldPassword, newPassword, token!),
+    onSuccess: () => {
+      toast.success("Пароль змінено успішно");
+      setEditField(null);
+    },
+    onError: (err: Error) => toast.error(err.message || "Невірний пароль"),
+  });
 
   function handleEditField(field: Field) {
     if (field === "email") {
       setChangeEmailOpen(true);
     } else if (field === "phone") {
-      // NEW: відкрити PhoneVerifyModal замість звичайного EditModal
       setPhoneModalOpen(true);
     } else if (field === "payment") {
-      // NEW: спочатку підтвердити пароль, потім відкрити PaymentCardModal
       setConfirmPwOpen(true);
     } else {
       setEditField(field);
     }
   }
 
-  async function handleSave(
+  function handleSave(
     field: Field,
     val: string,
     extra?: { old: string; newPass: string },
   ) {
-    try {
-      if (field === "password" && extra && token) {
-        await apiChangePassword(extra.old, extra.newPass, token);
-        toast("Пароль змінено успішно");
-      } else if (token && (field === "name" || field === "address")) {
-        const updated = await apiUpdateProfile({ [field]: val }, token);
-        saveAuth(token, updated);
-        if (field === "name") setDisplayName(val);
-        if (field === "address") setDisplayAddress(val);
-        toast("Профіль оновлено");
-      }
-    } catch (err: unknown) {
-      toast(
-        err instanceof Error ? err.message : "Помилка при збереженні",
-        "error",
-      );
+    if (field === "password" && extra) {
+      changePasswordMutation.mutate({
+        oldPassword: extra.old,
+        newPassword: extra.newPass,
+      });
+    } else if (field === "name" || field === "address") {
+      updateProfileMutation.mutate({ [field]: val });
     }
-    setEditField(null);
   }
+
+  function cardDisplay(): string {
+    if (!displayCardMasked) return "Не додано";
+    const type = displayCardType ? `${displayCardType} ` : "";
+    return `${type}${displayCardMasked}`;
+  }
+
+  const isSaving =
+    updateProfileMutation.isPending || changePasswordMutation.isPending;
 
   return (
     <>
@@ -502,7 +507,6 @@ export default function AccountPage() {
                   field="name"
                   onEdit={handleEditField}
                 />
-
                 <AccountItem
                   icon={<Mail size={18} />}
                   label="Адреса ел. пошти"
@@ -510,8 +514,6 @@ export default function AccountPage() {
                   field="email"
                   onEdit={handleEditField}
                 />
-
-                {/* NEW: Телефон з бейджем верифікації */}
                 <AccountItem
                   icon={<Phone size={18} />}
                   label="Номер телефону"
@@ -550,7 +552,6 @@ export default function AccountPage() {
                     ) : null
                   }
                 />
-
                 <AccountItem
                   icon={<Lock size={18} />}
                   label="Змінити пароль"
@@ -558,8 +559,6 @@ export default function AccountPage() {
                   onEdit={handleEditField}
                   isArrow
                 />
-
-                {/* NEW: Картка з відображенням типу */}
                 <AccountItem
                   icon={<CreditCard size={18} />}
                   label="Спосіб оплати"
@@ -568,7 +567,6 @@ export default function AccountPage() {
                   onEdit={handleEditField}
                   isArrow
                 />
-
                 <AccountItem
                   icon={<MapPin size={18} />}
                   label="Адреса"
@@ -580,20 +578,16 @@ export default function AccountPage() {
 
                 <div
                   className="account-item logout-item"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     logout();
                     document.cookie = "token=; path=/; max-age=0";
                     router.push("/login");
                   }}
-                  role="button"
-                  tabIndex={0}
                   onKeyDown={(e) =>
-                    e.key === "Enter" &&
-                    (logout(),
-                    (document.cookie = "token=; path=/; max-age=0"),
-                    router.push("/login"))
+                    e.key === "Enter" && (logout(), router.push("/login"))
                   }
-                  aria-label="Вийти з акаунту"
                 >
                   <div className="item-info">
                     <span className="account-item-icon">
@@ -623,18 +617,23 @@ export default function AccountPage() {
         </section>
       </main>
 
-      {/* Редагування імені / пароля / адреси */}
       {editField && (
         <EditModal
           field={editField}
-          currentValue={getCurrentValue(editField)}
+          currentValue={
+            editField === "name"
+              ? displayName
+              : editField === "address"
+                ? displayAddress
+                : ""
+          }
           onSave={(val, extra) => handleSave(editField, val, extra)}
           onClose={() => setEditField(null)}
           onForgotPassword={() => setForgotOpen(true)}
+          saving={isSaving}
         />
       )}
 
-      {/* Зміна email */}
       {changeEmailOpen && token && (
         <ChangeEmailModal
           token={token}
@@ -645,24 +644,21 @@ export default function AccountPage() {
         />
       )}
 
-      {/* Підтвердження паролю перед платіжними даними */}
       {confirmPwOpen && token && (
         <ConfirmPasswordModal
           token={token}
           onSuccess={() => {
             setConfirmPwOpen(false);
-            setPaymentModalOpen(true); // NEW: після підтвердження → картка
+            setPaymentModalOpen(true);
           }}
           onClose={() => setConfirmPwOpen(false)}
         />
       )}
 
-      {/* Забули пароль */}
       {forgotOpen && (
         <ForgotPasswordModal onClose={() => setForgotOpen(false)} />
       )}
 
-      {/* NEW: Верифікація телефону */}
       {phoneModalOpen && token && (
         <PhoneVerifyModal
           token={token}
@@ -672,13 +668,12 @@ export default function AccountPage() {
             setDisplayPhone(updatedUser.phone ?? "");
             setDisplayPhoneVerified(updatedUser.phone_verified ?? false);
             setPhoneModalOpen(false);
-            toast("Телефон підтверджено ✓");
+            toast.success("Телефон підтверджено ✓");
           }}
           onClose={() => setPhoneModalOpen(false)}
         />
       )}
 
-      {/* NEW: Додавання картки */}
       {paymentModalOpen && token && (
         <PaymentCardModal
           token={token}
@@ -689,7 +684,7 @@ export default function AccountPage() {
             );
             setDisplayCardType(updatedUser.card_type ?? "");
             setPaymentModalOpen(false);
-            toast("Картку збережено ✓");
+            toast.success("Картку збережено ✓");
           }}
           onClose={() => setPaymentModalOpen(false)}
         />
