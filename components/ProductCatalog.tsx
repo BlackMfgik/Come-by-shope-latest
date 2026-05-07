@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSearchStore } from "@/store/searchStore.ts";
 import { toast } from "sonner";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import {
   apiGetProducts,
   apiGetProduct,
@@ -24,6 +25,10 @@ import {
   Trash2,
   X,
   Plus,
+  Upload,
+  ImageIcon,
+  Link as LinkIcon,
+  X as XIcon,
 } from "lucide-react";
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -93,7 +98,7 @@ const EMPTY_FORM = {
   description: "",
   weight: "",
   price: "",
-  imageName: "",
+  imageUrl: "",
   category: "",
   customCategory: "",
 };
@@ -137,6 +142,9 @@ export default function ProductCatalog({
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"file" | "url">("file");
+  const [urlInput, setUrlInput] = useState("");
 
   const isNewCategory = form.category === "__new__";
   const effectiveCategory = isNewCategory ? form.customCategory : form.category;
@@ -239,7 +247,7 @@ export default function ProductCatalog({
       description: form.description,
       weight: form.weight,
       price: parseFloat(form.price),
-      imageName: form.imageName,
+      imageUrl: form.imageUrl,
       category: effectiveCategory,
     };
     if (editingId != null) {
@@ -257,7 +265,7 @@ export default function ProductCatalog({
         description: p.description ?? "",
         weight: p.weight ?? "",
         price: String(p.price),
-        imageName: p.imageName ?? "",
+        imageUrl: p.image ?? "",
         category: p.category ?? "",
         customCategory: "",
       });
@@ -266,6 +274,23 @@ export default function ProductCatalog({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       toast.error("Не вдалося завантажити товар");
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Помилка завантаження");
+      setForm((prev) => ({ ...prev, imageUrl: data.url }));
+      toast.success("Зображення завантажено ✓");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Помилка завантаження");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -518,18 +543,226 @@ export default function ProductCatalog({
                       gridColumn: "1 / -1",
                     }}
                   >
-                    <label style={labelStyle}>
-                      Назва зображення{" "}
-                      <span style={{ fontWeight: 400, color: "var(--text-2)" }}>
-                        (без розширення)
-                      </span>
-                    </label>
-                    <input
-                      placeholder="sushi-box-1"
-                      value={form.imageName}
-                      onChange={f("imageName")}
-                      style={inputStyle}
-                    />
+                    <label style={labelStyle}>Зображення товару</label>
+
+                    {/* Перемикач режиму */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      {(["file", "url"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setUploadMode(mode)}
+                          style={{
+                            padding: "5px 12px",
+                            borderRadius: 7,
+                            border: "1.5px solid",
+                            borderColor:
+                              uploadMode === mode
+                                ? "var(--color-text-primary)"
+                                : "var(--color-border)",
+                            background:
+                              uploadMode === mode
+                                ? "var(--color-text-primary)"
+                                : "transparent",
+                            color:
+                              uploadMode === mode
+                                ? "var(--color-background-primary)"
+                                : "var(--color-text-secondary)",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                          }}
+                        >
+                          {mode === "file" ? (
+                            <>
+                              <Upload size={12} /> З комп&apos;ютера / телефону
+                            </>
+                          ) : (
+                            <>
+                              <LinkIcon size={12} /> За посиланням
+                            </>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {uploadMode === "file" ? (
+                      <label
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 8,
+                          padding: "20px 16px",
+                          border: "2px dashed var(--color-border)",
+                          borderRadius: 10,
+                          cursor: uploading ? "not-allowed" : "pointer",
+                          background: "var(--color-background-secondary)",
+                          opacity: uploading ? 0.6 : 1,
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files[0];
+                          if (file) handleFileUpload(file);
+                        }}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          style={{ display: "none" }}
+                          disabled={uploading}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileUpload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        {uploading ? (
+                          <>
+                            <div
+                              style={{
+                                width: 28,
+                                height: 28,
+                                border: "3px solid var(--color-border)",
+                                borderTop:
+                                  "3px solid var(--color-text-primary)",
+                                borderRadius: "50%",
+                                animation: "spin 0.8s linear infinite",
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: 13,
+                                color: "var(--color-text-secondary)",
+                              }}
+                            >
+                              Завантаження...
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon
+                              size={28}
+                              style={{ color: "var(--color-text-secondary)" }}
+                            />
+                            <span
+                              style={{
+                                fontSize: 13,
+                                color: "var(--color-text-secondary)",
+                                textAlign: "center",
+                              }}
+                            >
+                              Натисни або перетягни файл
+                              <br />
+                              <span style={{ fontSize: 11, opacity: 0.7 }}>
+                                JPG, PNG, WebP — до 10MB
+                              </span>
+                            </span>
+                          </>
+                        )}
+                      </label>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          placeholder="https://res.cloudinary.com/..."
+                          value={urlInput}
+                          onChange={(e) => setUrlInput(e.target.value)}
+                          style={{ ...inputStyle, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (urlInput.trim()) {
+                              setForm((prev) => ({
+                                ...prev,
+                                imageUrl: urlInput.trim(),
+                              }));
+                              toast.success("Посилання збережено ✓");
+                            }
+                          }}
+                          style={{
+                            padding: "9px 14px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "var(--color-text-primary)",
+                            color: "var(--color-background-primary)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Зберегти
+                        </button>
+                      </div>
+                    )}
+
+                    {form.imageUrl && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          position: "relative",
+                          display: "inline-flex",
+                          alignItems: "flex-start",
+                          gap: 8,
+                        }}
+                      >
+                        <img
+                          src={form.imageUrl}
+                          alt="preview"
+                          style={{
+                            width: 80,
+                            height: 80,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                            border: "1px solid var(--color-border)",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({ ...prev, imageUrl: "" }))
+                          }
+                          style={{
+                            position: "absolute",
+                            top: -6,
+                            left: -6,
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: "var(--color-text-primary)",
+                            color: "var(--color-background-primary)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          <XIcon size={11} />
+                        </button>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "var(--color-text-secondary)",
+                            maxWidth: 180,
+                            wordBreak: "break-all",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {form.imageUrl.includes("cloudinary")
+                            ? "✓ Cloudinary"
+                            : form.imageUrl}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -650,7 +883,10 @@ export default function ProductCatalog({
                 }}
               >
                 <div className="product-img">
-                  <img src={p.image || "/images/no-image.jpeg"} alt={p.name} />
+                  <img
+                    src={p.image || cldUrl(STATIC_IMAGES.noImage)}
+                    alt={p.name}
+                  />
                 </div>
                 <div className="product-info">
                   <div>
@@ -669,7 +905,7 @@ export default function ProductCatalog({
                         addItem(
                           p.name,
                           p.price,
-                          p.image || "/images/no-image.jpeg",
+                          p.image || cldUrl(STATIC_IMAGES.noImage),
                           p.description || "",
                           p.id,
                         );

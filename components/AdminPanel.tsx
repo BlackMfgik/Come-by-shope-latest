@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import {
   apiGetProducts,
   apiGetProduct,
@@ -32,6 +33,10 @@ import {
   XCircle,
   ChefHat,
   Package,
+  Upload,
+  ImageIcon,
+  Link as LinkIcon,
+  X as XIcon,
 } from "lucide-react";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
 
@@ -139,7 +144,7 @@ const EMPTY_FORM = {
   description: "",
   weight: "",
   price: "",
-  imageName: "",
+  imageUrl: "",
   category: "",
   customCategory: "",
 };
@@ -769,6 +774,9 @@ export default function AdminPanel() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"file" | "url">("file");
+  const [urlInput, setUrlInput] = useState("");
 
   const categories = useMemo(() => {
     const cats = products.map((p) => p.category).filter(Boolean) as string[];
@@ -804,7 +812,7 @@ export default function AdminPanel() {
       description: form.description,
       weight: form.weight,
       price: parseFloat(form.price),
-      imageName: form.imageName,
+      imageUrl: form.imageUrl,
       category: effectiveCategory,
     };
     try {
@@ -835,7 +843,7 @@ export default function AdminPanel() {
         description: p.description ?? "",
         weight: p.weight ?? "",
         price: String(p.price),
-        imageName: p.imageName ?? "",
+        imageUrl: p.image ?? "",
         category: p.category ?? "",
         customCategory: "",
       });
@@ -854,6 +862,23 @@ export default function AdminPanel() {
       await load();
     } catch {
       toast.error("Не вдалося видалити товар");
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Помилка завантаження");
+      setForm((prev) => ({ ...prev, imageUrl: data.url }));
+      toast.success("Зображення завантажено ✓");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Помилка завантаження");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -880,7 +905,7 @@ export default function AdminPanel() {
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "2rem 1rem" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem" }}>
       {/* ── Таби ── */}
       <div
         style={{
@@ -932,15 +957,23 @@ export default function AdminPanel() {
 
       {/* ── Вміст: Товари ── */}
       {activeTab === "products" && (
-        <>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "380px 1fr",
+            gap: "1.5rem",
+            alignItems: "start",
+          }}
+        >
           {/* Форма */}
           <div
             style={{
               background: "var(--color-background-primary)",
               border: "0.5px solid var(--color-border-tertiary)",
               borderRadius: 16,
+              position: "sticky",
+              top: "1rem",
               padding: "1.5rem",
-              marginBottom: "2rem",
             }}
           >
             <div
@@ -1084,23 +1117,229 @@ export default function AdminPanel() {
                     gridColumn: "1 / -1",
                   }}
                 >
-                  <label style={labelStyle}>
-                    Назва зображення{" "}
-                    <span
+                  <label style={labelStyle}>Зображення товару</label>
+
+                  {/* Перемикач режиму */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    {(["file", "url"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setUploadMode(mode)}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 7,
+                          border: "1.5px solid",
+                          borderColor:
+                            uploadMode === mode
+                              ? "var(--color-text-primary)"
+                              : "var(--color-border)",
+                          background:
+                            uploadMode === mode
+                              ? "var(--color-text-primary)"
+                              : "transparent",
+                          color:
+                            uploadMode === mode
+                              ? "var(--color-background-primary)"
+                              : "var(--color-text-secondary)",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
+                        {mode === "file" ? (
+                          <>
+                            <Upload size={12} /> З комп&apos;ютера / телефону
+                          </>
+                        ) : (
+                          <>
+                            <LinkIcon size={12} /> За посиланням
+                          </>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {uploadMode === "file" ? (
+                    /* ── Завантаження файлу ── */
+                    <label
                       style={{
-                        color: "var(--color-text-secondary)",
-                        fontWeight: 400,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        padding: "20px 16px",
+                        border: "2px dashed var(--color-border)",
+                        borderRadius: 10,
+                        cursor: uploading ? "not-allowed" : "pointer",
+                        background: "var(--color-background-secondary)",
+                        transition: "border-color .2s",
+                        opacity: uploading ? 0.6 : 1,
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files[0];
+                        if (file) handleFileUpload(file);
                       }}
                     >
-                      (без розширення)
-                    </span>
-                  </label>
-                  <input
-                    placeholder="sushi-box-1"
-                    value={form.imageName}
-                    onChange={f("imageName")}
-                    style={inputStyle}
-                  />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: "none" }}
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      {uploading ? (
+                        <>
+                          <div
+                            style={{
+                              width: 28,
+                              height: 28,
+                              border: "3px solid var(--color-border)",
+                              borderTop: "3px solid var(--color-text-primary)",
+                              borderRadius: "50%",
+                              animation: "spin 0.8s linear infinite",
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 13,
+                              color: "var(--color-text-secondary)",
+                            }}
+                          >
+                            Завантаження...
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon
+                            size={28}
+                            style={{ color: "var(--color-text-secondary)" }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 13,
+                              color: "var(--color-text-secondary)",
+                              textAlign: "center",
+                            }}
+                          >
+                            Натисни або перетягни файл
+                            <br />
+                            <span style={{ fontSize: 11, opacity: 0.7 }}>
+                              JPG, PNG, WebP — до 10MB
+                            </span>
+                          </span>
+                        </>
+                      )}
+                    </label>
+                  ) : (
+                    /* ── Введення URL ── */
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        placeholder="https://res.cloudinary.com/..."
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (urlInput.trim()) {
+                            setForm((prev) => ({
+                              ...prev,
+                              imageUrl: urlInput.trim(),
+                            }));
+                            toast.success("Посилання збережено ✓");
+                          }
+                        }}
+                        style={{
+                          padding: "9px 14px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "var(--color-text-primary)",
+                          color: "var(--color-background-primary)",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Зберегти
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Прев'ю поточного зображення */}
+                  {form.imageUrl && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        position: "relative",
+                        display: "inline-flex",
+                        alignItems: "flex-start",
+                        gap: 8,
+                      }}
+                    >
+                      <img
+                        src={form.imageUrl}
+                        alt="preview"
+                        style={{
+                          width: 80,
+                          height: 80,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                          border: "1px solid var(--color-border)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, imageUrl: "" }))
+                        }
+                        style={{
+                          position: "absolute",
+                          top: -6,
+                          left: -6,
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          border: "none",
+                          background: "var(--color-text-primary)",
+                          color: "var(--color-background-primary)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        <XIcon size={11} />
+                      </button>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--color-text-secondary)",
+                          maxWidth: 180,
+                          wordBreak: "break-all",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {form.imageUrl.includes("cloudinary")
+                          ? "✓ Cloudinary"
+                          : form.imageUrl}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <button
@@ -1218,7 +1457,7 @@ export default function AdminPanel() {
                     >
                       <td style={{ padding: "10px 16px" }}>
                         <img
-                          src={p.image || "/images/no-image.png"}
+                          src={p.image || cldUrl(STATIC_IMAGES.noImage)}
                           alt={p.name}
                           style={{
                             width: 40,
@@ -1316,7 +1555,7 @@ export default function AdminPanel() {
               </table>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* ── Вміст: Замовлення ── */}

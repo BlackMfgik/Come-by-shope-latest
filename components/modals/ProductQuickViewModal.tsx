@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import { toast } from "sonner";
 import type { Product } from "@/types";
 
@@ -51,7 +52,7 @@ interface Props {
 export default function ProductQuickViewModal({ product, onClose }: Props) {
   const { addItem } = useCartStore();
   const [lightbox, setLightbox] = useState(false);
-  const imgSrc = product.image || "/images/no-image.png";
+  const imgSrc = product.image || cldUrl(STATIC_IMAGES.noImage);
 
   function handleAdd() {
     addItem(

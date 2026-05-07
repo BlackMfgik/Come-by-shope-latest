@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
@@ -366,7 +366,9 @@ export default function AccountPage() {
   const { user, token, saveAuth, logout, _hasHydrated } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("profile");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) ?? "profile";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [editField, setEditField] = useState<Field | null>(null);
 
   const [changeEmailOpen, setChangeEmailOpen] = useState(false);

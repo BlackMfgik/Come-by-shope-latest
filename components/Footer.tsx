@@ -1,5 +1,6 @@
 // Server Component — no 'use client' needed, accordion is CSS-only via <details>
 import { Instagram, ChevronDown } from "lucide-react";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 
 export default function Footer() {
   return (
@@ -8,7 +9,11 @@ export default function Footer() {
         {/* Brand + social */}
         <div className="footer-logo">
           <div className="footer-logo-row">
-            <img src="/images/shop-icon.png" width={28} alt="logo" />
+            <img
+              src={cldUrl(STATIC_IMAGES.logo, { w: 56 })}
+              width={28}
+              alt="logo"
+            />
             <span className="footer-brand">Come by</span>
           </div>
           <p className="footer-desc">

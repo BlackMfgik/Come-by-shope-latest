@@ -13,7 +13,7 @@ export default function OrderSuccessModal({ total, onClose }: Props) {
 
   function goOrders() {
     onClose();
-    router.push("/account");
+    router.push("/account?tab=orders");
   }
 
   return (

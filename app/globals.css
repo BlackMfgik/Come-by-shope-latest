@@ -483,11 +483,12 @@ header > .burger img {
   padding: calc(140px * var(--scale)) calc(5vw * var(--scale))
     calc(80px * var(--scale));
   max-width: 100%;
-  background: url("/images/products.png") no-repeat;
-  background-position: right -40px center;
-  background-size: clamp(200px, 36vw, 560px) auto;
+  background: url("https://res.cloudinary.com/dk9yjgta3/image/upload/a_-90,f_webp,q_auto/dhaneshdamodaran-fruits-7357732_1920_ozytfx")
+    no-repeat;
+  background-position: right -10px bottom 0px;
+  background-size: clamp(300px, 42vw, 640px) auto;
   position: relative;
-  min-height: 75vh;
+  min-height: 80vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -530,14 +531,14 @@ header > .burger img {
 }
 .hero h1 {
   font-family: "Syne", sans-serif;
-  font-size: clamp(2.4rem, 4.5vw, calc(4rem * var(--scale)));
+  font-size: clamp(3rem, 6vw, calc(5.5rem * var(--scale)));
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.08;
   letter-spacing: -0.04em;
   color: var(--text);
   position: relative;
   z-index: 2;
-  max-width: 620px;
+  max-width: 680px;
   margin-top: 0;
 }
 
@@ -2223,7 +2224,7 @@ input::placeholder {
     grid-template-columns: repeat(2, 1fr);
   }
   .hero {
-    background-size: 260px auto;
+    background-size: 340px auto;
   }
 }
 

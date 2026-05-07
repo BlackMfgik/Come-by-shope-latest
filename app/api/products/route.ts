@@ -16,6 +16,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json();
+
+  // Підтримка нового imageUrl (Cloudinary) та старого imageName
+  const imageUrl =
+    body.imageUrl ||
+    (body.imageName ? `/images/products/${body.imageName}.png` : "");
+
   const product = {
     id: db._nextProductId++,
     name: body.name,
@@ -23,7 +29,7 @@ export async function POST(req: NextRequest) {
     weight: body.weight ?? "",
     price: Number(body.price),
     imageName: body.imageName ?? "",
-    image: body.imageName ? `/images/products/${body.imageName}.png` : "",
+    image: imageUrl,
     category: body.category ?? "",
   };
   db.products.push(product);

@@ -8,6 +8,7 @@ import { useCartStore } from "@/store/cartStore";
 import CartSidebar from "./CartSidebar";
 import ThemeToggle from "./ThemeToggle";
 import { Search, ShoppingCart, User, Menu } from "lucide-react";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import {
   InputGroup,
   InputGroupAddon,
@@ -113,7 +114,11 @@ export default function Header() {
     <>
       <header>
         <Link className="logo" href="/" aria-label="Повернутись на головну">
-          <img src="/images/shop-icon.png" className="logo-img" alt="logo" />
+          <img
+            src={cldUrl(STATIC_IMAGES.logo, { w: 56 })}
+            className="logo-img"
+            alt="logo"
+          />
           Come by
         </Link>
 
