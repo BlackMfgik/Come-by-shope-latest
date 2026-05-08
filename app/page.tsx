@@ -28,13 +28,8 @@ async function getProducts(): Promise<Product[]> {
     }
   }
 
-  // 🚧 MOCK: читаємо напряму з in-memory DB (без HTTP-запиту)
-  try {
-    const { db } = await import("@/lib/mockDb");
-    return db.products as Product[];
-  } catch {
-    return [];
-  }
+  // Connect to backend when available
+  return [];
 }
 
 export default async function HomePage() {

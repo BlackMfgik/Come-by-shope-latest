@@ -25,13 +25,8 @@ async function getProducts(): Promise<Product[]> {
       return [];
     }
   }
-  // 🚧 MOCK
-  try {
-    const { db } = await import("@/lib/mockDb");
-    return db.products as Product[];
-  } catch {
-    return [];
-  }
+  // Connect to backend when available
+  return [];
 }
 
 export default async function MenuPage({

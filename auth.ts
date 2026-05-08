@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
-import { db } from "@/lib/mockDb";
 import type { UserInfo } from "@/types";
 
 declare module "next-auth" {
@@ -36,22 +35,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !password) return null;
 
-        // 🚧 МОК — замінити на fetch до реального API
-        const dbUser = db.users.find(
-          (u) =>
-            u.email.toLowerCase() === email.toLowerCase() &&
-            u.password === password,
-        );
-        if (!dbUser) return null;
-
-        const token = db.generateToken(dbUser.id);
-        const publicUser = db.toPublicUser(dbUser);
-
-        return {
-          ...publicUser,
-          id: String(publicUser.id),
-          accessToken: token,
-        };
+        // � Connect to real backend API
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/auth/login`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password }),
+            },
+          );
+          if (!res.ok) return null;
+          const data = await res.json();
+          return {
+            ...data.user,
+            id: String(data.user.id),
+            accessToken: data.token,
+          };
+        } catch (error) {
+          console.error("Login error:", error);
+          return null;
+        }
       },
     }),
 
@@ -64,37 +68,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        const email = user.email!;
-
-        // 🚧 МОК — замінити на POST /api/auth/google
-        let dbUser = db.users.find(
-          (u) => u.email.toLowerCase() === email.toLowerCase(),
-        );
-        if (!dbUser) {
-          dbUser = {
-            id: db._nextUserId++,
-            email,
-            password: "",
-            name: user.name ?? "",
-            phone: "",
-            address: "",
-            payment: "",
-            admin: false,
-          };
-          db.users.push(dbUser);
+        // 🔗 Connect to real backend API for Google auth
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/auth/google`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: user.email,
+                name: user.name,
+                image: user.image,
+              }),
+            },
+          );
+          if (!res.ok) return false;
+          const data = await res.json();
+          user.id = String(data.user.id);
+          user.name = data.user.name;
+          user.email = data.user.email;
+          user.phone = data.user.phone ?? "";
+          user.address = data.user.address ?? "";
+          user.payment = data.user.payment ?? "";
+          user.admin = data.user.admin ?? false;
+          user.accessToken = data.token;
+        } catch (error) {
+          console.error("Google auth error:", error);
+          return false;
         }
-
-        const token = db.generateToken(dbUser.id);
-        const publicUser = db.toPublicUser(dbUser);
-
-        user.id = String(publicUser.id);
-        user.name = publicUser.name;
-        user.email = publicUser.email;
-        user.phone = publicUser.phone;
-        user.address = publicUser.address;
-        user.payment = publicUser.payment;
-        user.admin = publicUser.admin;
-        user.accessToken = token;
       }
       return true;
     },

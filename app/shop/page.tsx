@@ -22,14 +22,7 @@ async function getProducts(): Promise<Product[]> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   } catch {
-    // 🚧 MOCK: видали цей блок разом з app/api/ і lib/mockDb.ts
-    // коли підключиш реальний бекенд
-    try {
-      const { db } = await import("@/lib/mockDb");
-      return db.products as Product[];
-    } catch {
-      return [];
-    }
+    return [];
   }
 }
 

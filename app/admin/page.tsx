@@ -26,15 +26,7 @@ async function getAdminUser() {
     const user = await res.json();
     return user?.admin ? user : null;
   } catch {
-    // 🚧 MOCK: пряма перевірка через mockDb
-    // Видали цей блок коли підключиш реальний бекенд
-    try {
-      const { db } = await import("@/lib/mockDb");
-      const user = db.getUserFromToken(token);
-      return user?.admin ? user : null;
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
