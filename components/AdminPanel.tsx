@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
-import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import {
   apiGetProducts,
   apiGetProduct,
@@ -39,6 +38,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 
 // ─── Типи ─────────────────────────────────────────────────────────────────────
 
@@ -1012,122 +1012,190 @@ export default function AdminPanel() {
             </div>
 
             <form id="admin-product-form" onSubmit={handleSubmit}>
+              {/* ── Layout: поля зліва + фото справа ── */}
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "1rem",
+                  display: "flex",
+                  gap: "1.5rem",
+                  alignItems: "flex-start",
                 }}
               >
+                {/* ── ЛІВА КОЛОНКА: всі текстові поля ── */}
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  style={{
+                    flex: 1,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "0.9rem",
+                  }}
                 >
-                  <label style={labelStyle}>Назва товару *</label>
-                  <input
-                    placeholder="Наприклад: Суші-бокс"
-                    required
-                    value={form.name}
-                    onChange={f("name")}
-                    style={inputStyle}
-                  />
-                </div>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
-                  <label style={labelStyle}>Категорія</label>
-                  <select
-                    value={form.category}
-                    onChange={f("category")}
-                    style={inputStyle}
-                  >
-                    <option value="">— без категорії —</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                    <option value="__new__">+ Нова категорія...</option>
-                  </select>
-                </div>
-                {isNewCategory && (
+                  {/* Назва — повна ширина */}
                   <div
                     style={{
                       display: "flex",
                       flexDirection: "column",
                       gap: 4,
-                      gridColumn: "2",
+                      gridColumn: "1 / -1",
                     }}
                   >
-                    <label style={labelStyle}>Назва нової категорії</label>
+                    <label style={labelStyle}>Назва товару *</label>
                     <input
-                      placeholder="Введи назву"
-                      value={form.customCategory}
-                      onChange={f("customCategory")}
+                      placeholder="Наприклад: Суші-бокс"
+                      required
+                      value={form.name}
+                      onChange={f("name")}
                       style={inputStyle}
                     />
                   </div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                    gridColumn: "1 / -1",
-                  }}
-                >
-                  <label style={labelStyle}>Опис</label>
-                  <textarea
-                    placeholder="Короткий опис товару"
-                    value={form.description}
-                    onChange={f("description")}
-                    rows={2}
-                    style={{ ...inputStyle, resize: "vertical" }}
-                  />
-                </div>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
-                  <label style={labelStyle}>Ціна (₴) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    required
-                    value={form.price}
-                    onChange={f("price")}
-                    style={inputStyle}
-                  />
-                </div>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
-                  <label style={labelStyle}>Вага / об'єм</label>
-                  <input
-                    placeholder="Наприклад: 300г"
-                    value={form.weight}
-                    onChange={f("weight")}
-                    style={inputStyle}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                    gridColumn: "1 / -1",
-                  }}
-                >
-                  <label style={labelStyle}>Зображення товару</label>
 
-                  {/* Перемикач режиму */}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  {/* Категорія */}
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Категорія</label>
+                    <select
+                      value={form.category}
+                      onChange={f("category")}
+                      style={inputStyle}
+                    >
+                      <option value="">— без категорії —</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Нова категорія...</option>
+                    </select>
+                  </div>
+
+                  {/* Нова категорія або порожня клітинка */}
+                  {isNewCategory ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <label style={labelStyle}>Назва нової категорії</label>
+                      <input
+                        placeholder="Введи назву"
+                        value={form.customCategory}
+                        onChange={f("customCategory")}
+                        style={inputStyle}
+                      />
+                    </div>
+                  ) : (
+                    <div />
+                  )}
+
+                  {/* Ціна */}
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Ціна (₴) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      required
+                      value={form.price}
+                      onChange={f("price")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Вага */}
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  >
+                    <label style={labelStyle}>Вага / об&apos;єм</label>
+                    <input
+                      placeholder="Наприклад: 300г"
+                      value={form.weight}
+                      onChange={f("weight")}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Опис — повна ширина */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      gridColumn: "1 / -1",
+                    }}
+                  >
+                    <label style={labelStyle}>Опис</label>
+                    <textarea
+                      placeholder="Короткий опис товару"
+                      value={form.description}
+                      onChange={f("description")}
+                      rows={2}
+                      style={{ ...inputStyle, resize: "vertical" }}
+                    />
+                  </div>
+
+                  {/* Кнопки дій — повна ширина, вирівняні справа */}
+                  <div
+                    style={{
+                      gridColumn: "1 / -1",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                      paddingTop: 4,
+                    }}
+                  >
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 22px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: "var(--color-text-primary)",
+                        color: "var(--color-background-primary)",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: saving ? "not-allowed" : "pointer",
+                        opacity: saving ? 0.6 : 1,
+                      }}
+                    >
+                      <Plus size={15} />
+                      {saving
+                        ? "Зберігаємо..."
+                        : editingId != null
+                          ? "Зберегти зміни"
+                          : "Додати товар"}
+                    </button>
+                  </div>
+                </div>
+                {/* ── ПРАВА КОЛОНКА: фото товару ── */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    flexShrink: 0,
+                    width: 180,
+                  }}
+                >
+                  <label style={labelStyle}>Фото товару</label>
+
+                  {/* Перемикач FILE / URL */}
+                  <div style={{ display: "flex", gap: 4 }}>
                     {(["file", "url"] as const).map((mode) => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => setUploadMode(mode)}
                         style={{
-                          padding: "5px 12px",
+                          flex: 1,
+                          padding: "5px 0",
                           borderRadius: 7,
                           border: "1.5px solid",
                           borderColor:
@@ -1142,41 +1210,36 @@ export default function AdminPanel() {
                             uploadMode === mode
                               ? "var(--color-background-primary)"
                               : "var(--color-text-secondary)",
-                          fontSize: 12,
-                          fontWeight: 500,
+                          fontSize: 11,
+                          fontWeight: 600,
                           cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
+                          letterSpacing: "0.04em",
+                          transition: "all .15s",
                         }}
                       >
-                        {mode === "file" ? (
-                          <>
-                            <Upload size={12} /> З комп&apos;ютера / телефону
-                          </>
-                        ) : (
-                          <>
-                            <LinkIcon size={12} /> За посиланням
-                          </>
-                        )}
+                        {mode === "file" ? "FILE" : "URL"}
                       </button>
                     ))}
                   </div>
 
                   {uploadMode === "file" ? (
-                    /* ── Завантаження файлу ── */
+                    /* ── Drag & drop зона ── */
                     <label
                       style={{
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 8,
-                        padding: "20px 16px",
+                        gap: 6,
+                        height: 160,
                         border: "2px dashed var(--color-border)",
-                        borderRadius: 10,
+                        borderRadius: 12,
                         cursor: uploading ? "not-allowed" : "pointer",
-                        background: "var(--color-background-secondary)",
+                        background: form.imageUrl
+                          ? "transparent"
+                          : "var(--color-background-secondary)",
+                        overflow: "hidden",
+                        position: "relative",
                         transition: "border-color .2s",
                         opacity: uploading ? 0.6 : 1,
                       }}
@@ -1199,12 +1262,23 @@ export default function AdminPanel() {
                           e.target.value = "";
                         }}
                       />
-                      {uploading ? (
+                      {form.imageUrl ? (
+                        <img
+                          src={form.imageUrl}
+                          alt="preview"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            borderRadius: 10,
+                          }}
+                        />
+                      ) : uploading ? (
                         <>
                           <div
                             style={{
-                              width: 28,
-                              height: 28,
+                              width: 24,
+                              height: 24,
                               border: "3px solid var(--color-border)",
                               borderTop: "3px solid var(--color-text-primary)",
                               borderRadius: "50%",
@@ -1213,7 +1287,7 @@ export default function AdminPanel() {
                           />
                           <span
                             style={{
-                              fontSize: 13,
+                              fontSize: 11,
                               color: "var(--color-text-secondary)",
                             }}
                           >
@@ -1223,33 +1297,55 @@ export default function AdminPanel() {
                       ) : (
                         <>
                           <ImageIcon
-                            size={28}
+                            size={26}
                             style={{ color: "var(--color-text-secondary)" }}
                           />
                           <span
                             style={{
-                              fontSize: 13,
+                              fontSize: 11,
                               color: "var(--color-text-secondary)",
                               textAlign: "center",
+                              lineHeight: 1.4,
                             }}
                           >
-                            Натисни або перетягни файл
+                            Натисни або
                             <br />
-                            <span style={{ fontSize: 11, opacity: 0.7 }}>
-                              JPG, PNG, WebP — до 10MB
+                            перетягни файл
+                            <br />
+                            <span style={{ opacity: 0.6 }}>
+                              JPG PNG WebP ≤10MB
                             </span>
                           </span>
                         </>
                       )}
                     </label>
                   ) : (
-                    /* ── Введення URL ── */
-                    <div style={{ display: "flex", gap: 6 }}>
+                    /* ── URL режим ── */
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {form.imageUrl && (
+                        <img
+                          src={form.imageUrl}
+                          alt="preview"
+                          style={{
+                            width: "100%",
+                            height: 130,
+                            objectFit: "cover",
+                            borderRadius: 10,
+                            border: "1px solid var(--color-border)",
+                          }}
+                        />
+                      )}
                       <input
                         placeholder="https://res.cloudinary.com/..."
                         value={urlInput}
                         onChange={(e) => setUrlInput(e.target.value)}
-                        style={{ ...inputStyle, flex: 1 }}
+                        style={{ ...inputStyle, fontSize: 11 }}
                       />
                       <button
                         type="button"
@@ -1263,111 +1359,47 @@ export default function AdminPanel() {
                           }
                         }}
                         style={{
-                          padding: "9px 14px",
+                          padding: "7px 0",
                           borderRadius: 8,
                           border: "none",
                           background: "var(--color-text-primary)",
                           color: "var(--color-background-primary)",
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: 500,
                           cursor: "pointer",
-                          whiteSpace: "nowrap",
                         }}
                       >
-                        Зберегти
+                        Зберегти URL
                       </button>
                     </div>
                   )}
 
-                  {/* Прев'ю поточного зображення */}
+                  {/* Кнопка видалення фото */}
                   {form.imageUrl && (
-                    <div
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, imageUrl: "" }))
+                      }
                       style={{
-                        marginTop: 8,
-                        position: "relative",
-                        display: "inline-flex",
-                        alignItems: "flex-start",
-                        gap: 8,
+                        padding: "5px 0",
+                        borderRadius: 7,
+                        border: "1px solid var(--color-border)",
+                        background: "transparent",
+                        color: "var(--color-text-secondary)",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
                       }}
                     >
-                      <img
-                        src={form.imageUrl}
-                        alt="preview"
-                        style={{
-                          width: 80,
-                          height: 80,
-                          objectFit: "cover",
-                          borderRadius: 8,
-                          border: "1px solid var(--color-border)",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setForm((prev) => ({ ...prev, imageUrl: "" }))
-                        }
-                        style={{
-                          position: "absolute",
-                          top: -6,
-                          left: -6,
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          border: "none",
-                          background: "var(--color-text-primary)",
-                          color: "var(--color-background-primary)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                          padding: 0,
-                        }}
-                      >
-                        <XIcon size={11} />
-                      </button>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--color-text-secondary)",
-                          maxWidth: 180,
-                          wordBreak: "break-all",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {form.imageUrl.includes("cloudinary")
-                          ? "✓ Cloudinary"
-                          : form.imageUrl}
-                      </span>
-                    </div>
+                      <XIcon size={11} /> Видалити фото
+                    </button>
                   )}
                 </div>
               </div>
-              <button
-                type="submit"
-                disabled={saving}
-                style={{
-                  marginTop: "1.25rem",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "var(--color-text-primary)",
-                  color: "var(--color-background-primary)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                <Plus size={16} />
-                {saving
-                  ? "Зберігаємо..."
-                  : editingId != null
-                    ? "Зберегти зміни"
-                    : "Додати товар"}
-              </button>
             </form>
           </div>
 

@@ -6,7 +6,6 @@ import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSearchStore } from "@/store/searchStore.ts";
 import { toast } from "sonner";
-import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import {
   apiGetProducts,
   apiGetProduct,
@@ -33,6 +32,7 @@ import {
 import SkeletonCard from "@/components/ui/SkeletonCard";
 import EmptyState from "@/components/ui/EmptyState";
 import CategoryFilter from "@/components/ui/CategoryFilter";
+import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 import ProductQuickViewModal from "@/components/modals/ProductQuickViewModal";
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal";
 
@@ -354,8 +354,7 @@ export default function ProductCatalog({
       {isAdmin && (
         <div
           style={{
-            marginTop: "calc(80px * var(--scale))",
-            maxWidth: 900,
+            maxWidth: 1400,
             margin: "calc(80px * var(--scale)) auto 0",
             padding: "0 calc(24px * var(--scale))",
           }}
@@ -392,22 +391,30 @@ export default function ProductCatalog({
                 background: "var(--surface)",
                 border: "0.5px solid var(--border)",
                 borderRadius: 16,
-                padding: "1.5rem",
+                padding: "0.6rem 1.5rem 1.25rem",
                 marginBottom: "1.5rem",
               }}
             >
+              {/* Шапка панелі */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: "1.25rem",
+                  marginBottom: "0.5rem",
                 }}
               >
-                <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "var(--text)",
+                  }}
+                >
                   {editingId != null ? "Редагування товару" : "Новий товар"}
-                </h2>
+                </span>
                 <button
+                  type="button"
                   onClick={() => {
                     setAdminOpen(false);
                     setEditingId(null);
@@ -416,388 +423,402 @@ export default function ProductCatalog({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    fontSize: 13,
-                    padding: "6px 12px",
-                    borderRadius: 8,
+                    gap: 5,
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    borderRadius: 7,
                     border: "0.5px solid var(--border-2)",
                     background: "transparent",
                     cursor: "pointer",
                     color: "var(--text-2)",
                   }}
                 >
-                  <X size={14} /> Скасувати
+                  <X size={12} /> Скасувати
                 </button>
               </div>
 
               <form id="admin-product-form" onSubmit={handleSubmit}>
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
-                    gap: "1rem",
+                    display: "flex",
+                    gap: "1.5rem",
+                    alignItems: "flex-start",
                   }}
                 >
+                  {/* ── ЛІВО: Фото ── */}
                   <div
-                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      flexShrink: 0,
+                      width: 140,
+                    }}
                   >
-                    <label style={labelStyle}>Назва товару *</label>
-                    <input
-                      placeholder="Наприклад: Суші-бокс"
-                      required
-                      value={form.name}
-                      onChange={f("name")}
-                      style={inputStyle}
-                    />
-                  </div>
+                    <label style={labelStyle}>Фото</label>
 
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <label style={labelStyle}>Категорія</label>
-                    <select
-                      value={form.category}
-                      onChange={f("category")}
-                      style={inputStyle}
-                    >
-                      <option value="">— без категорії —</option>
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                      <option value="__new__">+ Нова категорія...</option>
-                    </select>
-                  </div>
-
-                  {isNewCategory && (
-                    <div
+                    {/* Upload зона */}
+                    <label
                       style={{
+                        position: "relative",
+                        width: 140,
+                        height: 140,
+                        borderRadius: 12,
+                        border: form.imageUrl
+                          ? "1px solid var(--border)"
+                          : "2px dashed var(--border)",
+                        background: form.imageUrl
+                          ? "transparent"
+                          : "var(--surface-2, var(--surface))",
+                        cursor: uploading ? "not-allowed" : "pointer",
                         display: "flex",
                         flexDirection: "column",
-                        gap: 4,
-                        gridColumn: "2",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        overflow: "hidden",
+                        opacity: uploading ? 0.6 : 1,
+                        transition: "border-color .15s",
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files[0];
+                        if (file) handleFileUpload(file);
                       }}
                     >
-                      <label style={labelStyle}>Назва нової категорії</label>
                       <input
-                        placeholder="Введи назву"
-                        value={form.customCategory}
-                        onChange={f("customCategory")}
-                        style={inputStyle}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: "none" }}
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file);
+                          e.target.value = "";
+                        }}
                       />
-                    </div>
-                  )}
+                      {form.imageUrl ? (
+                        <>
+                          <img
+                            src={form.imageUrl}
+                            alt="preview"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setForm((p) => ({ ...p, imageUrl: "" }));
+                            }}
+                            style={{
+                              position: "absolute",
+                              top: 4,
+                              right: 4,
+                              width: 20,
+                              height: 20,
+                              borderRadius: "50%",
+                              border: "none",
+                              background: "rgba(0,0,0,0.65)",
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              padding: 0,
+                            }}
+                          >
+                            <XIcon size={10} />
+                          </button>
+                        </>
+                      ) : uploading ? (
+                        <>
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              border: "2.5px solid var(--border)",
+                              borderTop: "2.5px solid var(--accent)",
+                              borderRadius: "50%",
+                              animation: "spin 0.8s linear infinite",
+                            }}
+                          />
+                          <span
+                            style={{ fontSize: 11, color: "var(--text-2)" }}
+                          >
+                            Завантаження...
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload
+                            size={22}
+                            style={{ color: "var(--text-2)" }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: "var(--text-2)",
+                              textAlign: "center",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            Перетягни
+                            <br />
+                            або натисни
+                          </span>
+                        </>
+                      )}
+                    </label>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                      gridColumn: "1 / -1",
-                    }}
-                  >
-                    <label style={labelStyle}>Опис</label>
-                    <textarea
-                      placeholder="Короткий опис товару"
-                      value={form.description}
-                      onChange={f("description")}
-                      rows={2}
-                      style={{ ...inputStyle, resize: "vertical" }}
-                    />
-                  </div>
-
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <label style={labelStyle}>Ціна (₴) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      required
-                      value={form.price}
-                      onChange={f("price")}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <label style={labelStyle}>Вага / об'єм</label>
-                    <input
-                      placeholder="Наприклад: 300г"
-                      value={form.weight}
-                      onChange={f("weight")}
-                      style={inputStyle}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                      gridColumn: "1 / -1",
-                    }}
-                  >
-                    <label style={labelStyle}>Зображення товару</label>
-
-                    {/* Перемикач режиму */}
-                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    {/* FILE / URL перемикач */}
+                    <div style={{ display: "flex", gap: 4 }}>
                       {(["file", "url"] as const).map((mode) => (
                         <button
                           key={mode}
                           type="button"
                           onClick={() => setUploadMode(mode)}
                           style={{
-                            padding: "5px 12px",
-                            borderRadius: 7,
-                            border: "1.5px solid",
+                            flex: 1,
+                            padding: "4px 0",
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            border: "1px solid",
                             borderColor:
                               uploadMode === mode
-                                ? "var(--color-text-primary)"
-                                : "var(--color-border)",
+                                ? "var(--accent)"
+                                : "var(--border-2)",
                             background:
                               uploadMode === mode
-                                ? "var(--color-text-primary)"
+                                ? "var(--accent)"
                                 : "transparent",
                             color:
-                              uploadMode === mode
-                                ? "var(--color-background-primary)"
-                                : "var(--color-text-secondary)",
-                            fontSize: 12,
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 5,
+                              uploadMode === mode ? "#fff" : "var(--text-2)",
+                            letterSpacing: "0.03em",
+                            transition: "all .15s",
                           }}
                         >
-                          {mode === "file" ? (
-                            <>
-                              <Upload size={12} /> З комп&apos;ютера / телефону
-                            </>
-                          ) : (
-                            <>
-                              <LinkIcon size={12} /> За посиланням
-                            </>
-                          )}
+                          {mode === "file" ? "FILE" : "URL"}
                         </button>
                       ))}
                     </div>
 
-                    {uploadMode === "file" ? (
-                      <label
+                    {/* URL input (якщо вибрано URL режим) */}
+                    {uploadMode === "url" && (
+                      <div
                         style={{
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
-                          padding: "20px 16px",
-                          border: "2px dashed var(--color-border)",
-                          borderRadius: 10,
-                          cursor: uploading ? "not-allowed" : "pointer",
-                          background: "var(--color-background-secondary)",
-                          opacity: uploading ? 0.6 : 1,
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const file = e.dataTransfer.files[0];
-                          if (file) handleFileUpload(file);
+                          gap: 4,
                         }}
                       >
                         <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          style={{ display: "none" }}
-                          disabled={uploading}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleFileUpload(file);
-                            e.target.value = "";
-                          }}
-                        />
-                        {uploading ? (
-                          <>
-                            <div
-                              style={{
-                                width: 28,
-                                height: 28,
-                                border: "3px solid var(--color-border)",
-                                borderTop:
-                                  "3px solid var(--color-text-primary)",
-                                borderRadius: "50%",
-                                animation: "spin 0.8s linear infinite",
-                              }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 13,
-                                color: "var(--color-text-secondary)",
-                              }}
-                            >
-                              Завантаження...
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon
-                              size={28}
-                              style={{ color: "var(--color-text-secondary)" }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 13,
-                                color: "var(--color-text-secondary)",
-                                textAlign: "center",
-                              }}
-                            >
-                              Натисни або перетягни файл
-                              <br />
-                              <span style={{ fontSize: 11, opacity: 0.7 }}>
-                                JPG, PNG, WebP — до 10MB
-                              </span>
-                            </span>
-                          </>
-                        )}
-                      </label>
-                    ) : (
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input
-                          placeholder="https://res.cloudinary.com/..."
+                          placeholder="https://..."
                           value={urlInput}
                           onChange={(e) => setUrlInput(e.target.value)}
-                          style={{ ...inputStyle, flex: 1 }}
+                          style={{ ...inputStyle, fontSize: 11 }}
                         />
                         <button
                           type="button"
                           onClick={() => {
                             if (urlInput.trim()) {
-                              setForm((prev) => ({
-                                ...prev,
+                              setForm((p) => ({
+                                ...p,
                                 imageUrl: urlInput.trim(),
                               }));
-                              toast.success("Посилання збережено ✓");
+                              toast.success("✓");
                             }
                           }}
                           style={{
-                            padding: "9px 14px",
-                            borderRadius: 8,
+                            padding: "6px 0",
+                            borderRadius: 7,
                             border: "none",
-                            background: "var(--color-text-primary)",
-                            color: "var(--color-background-primary)",
-                            fontSize: 13,
+                            background: "var(--accent)",
+                            color: "#fff",
+                            fontSize: 12,
                             fontWeight: 500,
                             cursor: "pointer",
-                            whiteSpace: "nowrap",
                           }}
                         >
-                          Зберегти
+                          Зберегти URL
                         </button>
-                      </div>
-                    )}
-
-                    {form.imageUrl && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          position: "relative",
-                          display: "inline-flex",
-                          alignItems: "flex-start",
-                          gap: 8,
-                        }}
-                      >
-                        <img
-                          src={form.imageUrl}
-                          alt="preview"
-                          style={{
-                            width: 80,
-                            height: 80,
-                            objectFit: "cover",
-                            borderRadius: 8,
-                            border: "1px solid var(--color-border)",
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({ ...prev, imageUrl: "" }))
-                          }
-                          style={{
-                            position: "absolute",
-                            top: -6,
-                            left: -6,
-                            width: 20,
-                            height: 20,
-                            borderRadius: "50%",
-                            border: "none",
-                            background: "var(--color-text-primary)",
-                            color: "var(--color-background-primary)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            padding: 0,
-                          }}
-                        >
-                          <XIcon size={11} />
-                        </button>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "var(--color-text-secondary)",
-                            maxWidth: 180,
-                            wordBreak: "break-all",
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {form.imageUrl.includes("cloudinary")
-                            ? "✓ Cloudinary"
-                            : form.imageUrl}
-                        </span>
                       </div>
                     )}
                   </div>
 
+                  {/* ── ПРАВО: Поля ── */}
                   <div
                     style={{
-                      gridColumn: "1 / -1",
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      marginTop: 4,
+                      flex: 1,
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "0.75rem",
                     }}
                   >
-                    <button
-                      type="submit"
-                      disabled={saving}
+                    {/* Назва — повна ширина */}
+                    <div
                       style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "10px 24px",
-                        borderRadius: 10,
-                        border: "none",
-                        background: "var(--accent)",
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: 500,
-                        cursor: saving ? "not-allowed" : "pointer",
-                        opacity: saving ? 0.6 : 1,
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
                       }}
                     >
-                      <Plus size={16} />
-                      {saving
-                        ? "Зберігаємо..."
-                        : editingId != null
-                          ? "Зберегти зміни"
-                          : "Додати товар"}
-                    </button>
+                      <label style={labelStyle}>Назва *</label>
+                      <input
+                        placeholder="Наприклад: Суші-бокс"
+                        required
+                        value={form.name}
+                        onChange={f("name")}
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    {/* Категорія */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <label style={labelStyle}>Категорія</label>
+                      <select
+                        value={form.category}
+                        onChange={f("category")}
+                        style={inputStyle}
+                      >
+                        <option value="">— без —</option>
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                        <option value="__new__">+ Нова...</option>
+                      </select>
+                    </div>
+
+                    {/* Нова категорія або пуста клітинка */}
+                    {isNewCategory ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                        }}
+                      >
+                        <label style={labelStyle}>Назва нової</label>
+                        <input
+                          placeholder="Введи назву"
+                          value={form.customCategory}
+                          onChange={f("customCategory")}
+                          style={inputStyle}
+                        />
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+
+                    {/* Ціна */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <label style={labelStyle}>Ціна (₴) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        required
+                        value={form.price}
+                        onChange={f("price")}
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    {/* Вага */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <label style={labelStyle}>Вага / об&apos;єм</label>
+                      <input
+                        placeholder="300г"
+                        value={form.weight}
+                        onChange={f("weight")}
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    {/* Опис — повна ширина */}
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <label style={labelStyle}>Опис</label>
+                      <input
+                        placeholder="Короткий опис товару"
+                        value={form.description}
+                        onChange={
+                          f(
+                            "description",
+                          ) as React.ChangeEventHandler<HTMLInputElement>
+                        }
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    {/* Кнопка — вирівняна справа */}
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "9px 22px",
+                          borderRadius: 10,
+                          border: "none",
+                          background: "var(--accent)",
+                          color: "#fff",
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: saving ? "not-allowed" : "pointer",
+                          opacity: saving ? 0.6 : 1,
+                        }}
+                      >
+                        <Plus size={15} />
+                        {saving
+                          ? "Збереження..."
+                          : editingId != null
+                            ? "Зберегти"
+                            : "Додати товар"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </form>
