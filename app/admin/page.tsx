@@ -9,6 +9,18 @@ export const metadata: Metadata = {
   title: "Адмін — Come by Shop",
 };
 
+/**
+ * 🔌 BACKEND: GET /api/auth/me  [AUTH REQUIRED]
+ * Headers:  Authorization: Bearer <token>
+ * Response: UserInfo { id, email, name, admin: true, ... }
+ * Errors:   401 → null (редирект на головну)
+ *
+ * ⚙️ Бекенд: розкодувати JWT токен, SELECT * FROM users WHERE id = $1
+ * ⚠️ Перевіряти user.admin === true перед рендером AdminPanel
+ *
+ * Примітка: токен береться з httpOnly cookie "token"
+ * Встановлюється бекендом після /api/auth/login
+ */
 async function getAdminUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -17,7 +29,7 @@ async function getAdminUser() {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "";
 
   try {
-    // З реальним бекендом: GET /api/auth/me повертає юзера за токеном
+    // 🔌 GET /api/auth/me — перевірка сесії та прав адміна
     const res = await fetch(`${base}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

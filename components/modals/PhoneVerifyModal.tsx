@@ -251,22 +251,6 @@ export default function PhoneVerifyModal({
               Ми надішлемо SMS з кодом підтвердження
             </p>
 
-            {/* Мок-підказка для розробки */}
-            <div
-              style={{
-                background: "rgba(255,200,0,0.08)",
-                border: "1px solid rgba(255,200,0,0.3)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                marginBottom: 12,
-                fontSize: "0.8rem",
-                color: "var(--text-3, #888)",
-              }}
-            >
-              🚧 <strong>Мок-режим:</strong> код завжди <strong>123456</strong>
-              {/* TODO [BACKEND]: прибрати цей блок після підключення TurboSMS */}
-            </div>
-
             <div id="modal-row-single">
               <input
                 id="modal-phone-input"

@@ -11,10 +11,42 @@ export default function ForgotPasswordModal({ onClose }: Props) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: підключити реальний API reset password
-    setSent(true);
+    if (!email) return;
+
+    try {
+      /**
+       * 🔌 ENDPOINT: POST /api/auth/reset-password
+       * Request:  { email: string }
+       * Response: { ok: true }  (завжди 200, навіть якщо email не існує — безпека)
+       *
+       * ⚙️ Що має зробити бекенд:
+       * 1. Знайти юзера за email (якщо немає — повернути 200 без дії)
+       * 2. Згенерувати унікальний токен скидання (UUID або crypto.randomBytes)
+       * 3. Зберегти в БД: { userId, resetToken, expiresAt: now+1год }
+       * 4. Відправити email:
+       *    Тема: "Скидання пароля Come by Shop"
+       *    Текст: "Перейдіть за посиланням: https://come-by-shop.com/reset-password?token=XXX"
+       * 5. Після переходу за посиланням — окремий endpoint:
+       *    POST /api/auth/reset-password/confirm
+       *    Body: { token: string, newPassword: string }
+       * ENV: EMAIL_PROVIDER_API_KEY, EMAIL_FROM_ADDRESS
+       */
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        },
+      );
+      if (res.ok) {
+        setSent(true);
+      }
+    } catch (error) {
+      console.error("Reset password error:", error);
+    }
   }
 
   return (

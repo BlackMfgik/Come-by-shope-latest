@@ -11,22 +11,34 @@ export const metadata: Metadata = {
   description: "Вигідні комбо-набори від Come by Shop. Більше за менші гроші!",
 };
 
+/**
+ * 🔌 BACKEND: GET /api/products?category=Комбо
+ * або GET /api/products — якщо фільтр по категорії робиться на фронті
+ *
+ * ⚠️ Узгодити з бекендом: яке значення category для сторінки "Комбо"?
+ * Варіанти: "Комбо" | "combo" — має співпадати з products.category в БД
+ *
+ * Cache: revalidate 60 секунд
+ */
 async function getProducts(): Promise<Product[]> {
   const externalBase = process.env.NEXT_PUBLIC_API_URL;
-  if (externalBase) {
-    try {
-      const res = await fetch(`${externalBase}/api/products`, {
-        headers: { Accept: "application/json" },
-        next: { revalidate: 60 },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    } catch {
-      return [];
-    }
+
+  if (!externalBase) {
+    // 🔌 NEXT_PUBLIC_API_URL не встановлено — встановити в .env.local
+    return [];
   }
-  // Connect to backend when available
-  return [];
+
+  try {
+    // 🔌 Опціонально: додати ?category=Комбо для фільтрації на рівні бекенду
+    const res = await fetch(`${externalBase}/api/products`, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 export default async function ComboPage({

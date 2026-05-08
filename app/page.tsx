@@ -12,24 +12,30 @@ export const metadata: Metadata = {
     "Замовляй їжу та продукти онлайн — оплата на місці чи тут. Широкий асортимент: меню, магазин, комбо-набори.",
 };
 
+/**
+ * 🔌 BACKEND: GET /api/products
+ * Параметри: немає (головна сторінка показує всі категорії, перші 8 товарів)
+ * Cache: revalidate 60 секунд
+ * Повертає: Product[] — порожній масив якщо бекенд недоступний
+ */
 async function getProducts(): Promise<Product[]> {
   const externalBase = process.env.NEXT_PUBLIC_API_URL;
 
-  if (externalBase) {
-    try {
-      const res = await fetch(`${externalBase}/api/products`, {
-        headers: { Accept: "application/json" },
-        next: { revalidate: 60 },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    } catch {
-      return [];
-    }
+  if (!externalBase) {
+    // 🔌 NEXT_PUBLIC_API_URL не встановлено — встановити в .env.local
+    return [];
   }
 
-  // Connect to backend when available
-  return [];
+  try {
+    const res = await fetch(`${externalBase}/api/products`, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 export default async function HomePage() {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, CreditCard, Lock, CheckCircle2, ShieldCheck } from "lucide-react";
-import { apiInitWayForPay, apiSaveCardMock } from "@/lib/api";
+import { apiInitWayForPay } from "@/lib/api";
 import type { UserInfo, WayForPayInitResult } from "@/types";
 
 // ─── Візуальна картка ─────────────────────────────────────────────────────────
@@ -299,52 +299,8 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
      */
   }, [step, wpData]);
 
-  // ─── Збереження мок-картки ────────────────────────────────────────────────
-
-  async function handleSaveMock() {
-    setError("");
-
-    if (cardNumber.raw.length < 16) {
-      setError("Введіть 16-значний номер картки");
-      return;
-    }
-    const expiryError = expiry.validate();
-    if (expiryError) {
-      setError(expiryError);
-      return;
-    }
-    if (cvv.length < 3) {
-      setError("Введіть CVV (3 цифри)");
-      return;
-    }
-    if (!cardName.trim()) {
-      setError("Введіть ім'я власника картки");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const last4 = cardNumber.raw.slice(-4);
-      const masked = `**** **** **** ${last4}`;
-      const cardTypeLabel =
-        cardNumber.cardType === "visa"
-          ? "Visa"
-          : cardNumber.cardType === "mastercard"
-            ? "MasterCard"
-            : "Card";
-
-      const updated = await apiSaveCardMock(
-        { masked_pan: masked, card_type: cardTypeLabel },
-        token,
-      );
-      setStep("done");
-      setTimeout(() => onSuccess(updated), 1200);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Помилка збереження");
-    } finally {
-      setSaving(false);
-    }
-  }
+  // NOTE: In production, card data is handled entirely by WayForPay iframe
+  // No direct save function needed
 
   return (
     <div
@@ -388,24 +344,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
             <h3 id="payment-modal-title" style={{ margin: "0 0 4px" }}>
               Додати картку
             </h3>
-
-            {/* Мок-підказка */}
-            <div
-              style={{
-                background: "rgba(255,200,0,0.08)",
-                border: "1px solid rgba(255,200,0,0.3)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                marginBottom: 14,
-                fontSize: "0.8rem",
-                color: "var(--text-3, #888)",
-              }}
-            >
-              🚧 <strong>Мок-режим:</strong> дані не перевіряються реально.
-              Використай будь-яку тестову картку Visa (починається з 4) або MC
-              (з 5).
-              {/* TODO [BACKEND]: прибрати після підключення WayForPay */}
-            </div>
 
             <CardPreview
               number={cardNumber.raw}
@@ -518,11 +456,11 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
               <button
                 className="btn btn-primary"
                 type="button"
-                disabled={saving}
-                onClick={handleSaveMock}
+                disabled={true}
                 onMouseDown={(e) => e.preventDefault()}
+                title="Потрібна інтеграція WayForPay"
               >
-                {saving ? "Зберігаємо…" : "Зберегти картку"}
+                Зберегти картку
               </button>
             </div>
           </>

@@ -11,10 +11,25 @@ export const metadata: Metadata = {
   description: "Широкий асортимент продуктів в інтернет-магазині Come by Shop.",
 };
 
+/**
+ * 🔌 BACKEND: GET /api/products?category=Магазин
+ * або GET /api/products — якщо фільтр по категорії робиться на фронті
+ *
+ * ⚠️ Узгодити з бекендом: яке значення category для сторінки "Магазин"?
+ * Варіанти: "Магазин" | "shop" | "продукти" — має співпадати з products.category в БД
+ *
+ * Cache: revalidate 60 секунд
+ */
 async function getProducts(): Promise<Product[]> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+  if (!base) {
+    // 🔌 NEXT_PUBLIC_API_URL не встановлено — встановити в .env.local
+    return [];
+  }
+
   try {
+    // 🔌 Опціонально: додати ?category=Магазин для фільтрації на рівні бекенду
     const res = await fetch(`${base}/api/products`, {
       headers: { Accept: "application/json" },
       next: { revalidate: 60 },

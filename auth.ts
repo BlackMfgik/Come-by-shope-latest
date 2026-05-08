@@ -35,7 +35,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !password) return null;
 
-        // � Connect to real backend API
+        /**
+         * 🔌 ENDPOINT: POST /api/auth/login
+         * Request:  { email, password }
+         * Response: { token, user: UserInfo }
+         * Errors:   401 → null (NextAuth показує CredentialsSignin помилку)
+         * ⚙️ Бекенд: bcrypt.compare(password, hash), генерувати JWT
+         */
         try {
           const res = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/auth/login`,
@@ -68,7 +74,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // 🔗 Connect to real backend API for Google auth
+        /**
+         * 🔌 ENDPOINT: POST /api/auth/google
+         * Request:  { email, name?, image? }  (дані від Google)
+         * Response: { token, user: UserInfo }
+         * Логіка:   якщо email існує → логін, інакше → авто-реєстрація
+         * ⚠️ НЕ передавати Google idToken — тільки профільні дані
+         */
         try {
           const res = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/auth/google`,
