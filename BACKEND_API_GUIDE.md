@@ -677,20 +677,3 @@ CREATE TABLE categories (
 4. **Status codes:** 200, 201, 204, 400, 401, 404, 409, 429
 5. **CORS headers** для cross-origin запитів
 6. **Rate limiting** для auth endpoints
-
----
-
-## 📝 **Deployment Checklist**
-
-- [ ] Усі TODO зі статусом ✅ реалізовані
-- [ ] ENV variables встановлені (TURBOSMS_TOKEN, NEXTAUTH_SECRET, тощо)
-- [ ] Тести написані для всіх endpoints
-- [ ] Database міграції готові
-- [ ] HTTPS налаштований
-- [ ] Логування налаштовано
-- [ ] Backups налаштовані
-- [ ] Monitoring/alerting активовані
-
----
-
-**Contact:** Якщо у розробника є питання по конкретному endpoint'у, див. коментарі в коді або цей документ.
