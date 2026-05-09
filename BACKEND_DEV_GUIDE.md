@@ -1212,3 +1212,19 @@ SQL Ін'єкції
   □ POST /api/payment/wayforpay/init  (WayForPay)
   □ POST /api/payment/wayforpay/callback
 ```
+
+API контракти які критичні для фронту:
+POST /api/auth/login і POST /api/auth/google — відповідь має бути точно { token: string, user: UserInfo }. Фронт зберігає token в Zustand persist і передає в кожен захищений запит як Authorization: Bearer.
+GET /api/auth/me — цей ендпоінт блокує рендер /admin сторінки. Він має бути швидким (не робити важких запитів). Повертати UserInfo з полем admin: boolean.
+Змінні середовища:
+Додати API_URL (приватна) окремо від NEXT_PUBLIC_API_URL. Фронт буде використовувати приватну для Server Components.
+Нормалізовані помилки:
+Завжди { "error": "текст помилки" } — фронт вже парсить саме цей формат у lib/api.ts. Якщо формат інший — весь error handling зламається.
+Rate limiting:
+Обов'язково на POST /api/auth/login — мінімум 5 спроб / хвилину по IP. Фронт не має захисту від брутфорсу.
+WayForPay:
+authorizationCode (HMAC-MD5 підпис) — формується тільки на бекенді, приватним ключем мерчанта. Фронт лише отримує готовий об'єкт і POST-ить на WayForPay. Це вже закоментовано в types/index.ts.
+CORS:
+Дозволити тільки домен фронту. Не \*.
+httpOnly cookie token:
+Бекенд має встановлювати його при логіні. Фронт читає його в Server Components через cookies() з next/headers — це вже реалізовано в app/admin/page.tsx.

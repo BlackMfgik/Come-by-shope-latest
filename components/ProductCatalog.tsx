@@ -157,7 +157,7 @@ export default function ProductCatalog({
     isError,
   } = useQuery({
     queryKey: ["products"],
-    queryFn: apiGetProducts,
+    queryFn: () => apiGetProducts(),
     // SSR initialData — не перезавантажує якщо дані свіжі
     initialData: initialProducts,
     // Перевіряти свіжість кожні 60 сек
