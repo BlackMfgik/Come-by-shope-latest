@@ -1,10 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { X, Mail } from "lucide-react";
-import { apiRequestEmailChange, apiConfirmEmailChange } from "@/lib/api";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Mail } from "lucide-react";
 import { toast } from "sonner";
+import Countdown, { type CountdownRenderProps } from "react-countdown";
+import { RefreshCw } from "lucide-react";
+
+import BaseModal from "./BaseModal";
+import OtpInput from "@/components/ui/OtpInput";
+import { apiRequestEmailChange, apiConfirmEmailChange } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+
+const emailSchema = z.object({
+  email: z.string().min(1, "Введіть email").email("Невірний формат email"),
+});
+const codeSchema = z.object({
+  code: z
+    .string()
+    .length(6, "Код — 6 цифр")
+    .regex(/^\d{6}$/),
+});
+
+type EmailForm = z.infer<typeof emailSchema>;
+type CodeForm = z.infer<typeof codeSchema>;
 
 interface Props {
   token: string;
@@ -14,186 +34,184 @@ interface Props {
 export default function ChangeEmailModal({ token, onClose }: Props) {
   const { saveAuth } = useAuthStore();
 
-  const [step, setStep] = useState<1 | 2>(1);
-  const [newEmail, setNewEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // Step 1 form
+  const emailForm = useForm<EmailForm>({ resolver: zodResolver(emailSchema) });
+  const newEmail = emailForm.watch("email", "");
+  const step1Done = emailForm.formState.isSubmitSuccessful;
 
-  async function handleRequestCode(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!newEmail.trim()) {
-      setError("Введіть новий email");
-      return;
-    }
-    setLoading(true);
+  // Step 2 form
+  const codeForm = useForm<CodeForm>({
+    resolver: zodResolver(codeSchema),
+    defaultValues: { code: "" },
+  });
+  const code = codeForm.watch("code", "");
+
+  async function handleRequestCode(data: EmailForm) {
     try {
-      await apiRequestEmailChange(newEmail.trim(), token);
-      setStep(2);
+      await apiRequestEmailChange(data.email.trim(), token);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Помилка при надсиланні коду",
-      );
-    } finally {
-      setLoading(false);
+      emailForm.setError("email", {
+        message:
+          err instanceof Error ? err.message : "Помилка при надсиланні коду",
+      });
+      throw err; // prevent isSubmitSuccessful
     }
   }
 
-  async function handleConfirm(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!code.trim()) {
-      setError("Введіть код");
-      return;
-    }
-    setLoading(true);
+  async function handleConfirm(data: CodeForm) {
     try {
       const updatedUser = await apiConfirmEmailChange(
         newEmail.trim(),
-        code.trim(),
+        data.code,
         token,
       );
       saveAuth(token, updatedUser);
-      toast.success("Email змінено~");
+      toast.success("Email змінено ✓");
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Невірний код");
-    } finally {
-      setLoading(false);
+      codeForm.setError("code", {
+        message: err instanceof Error ? err.message : "Невірний код",
+      });
+      codeForm.setValue("code", "");
     }
   }
 
-  return (
-    <div
-      className="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="change-email-title"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="modal-content" style={{ maxWidth: 380 }}>
-        <button className="modal-close" onClick={onClose} aria-label="Закрити">
-          <X size={16} />
-        </button>
-
-        <div className="modal-icon-wrap modal-icon-accent">
-          <Mail size={28} color="var(--accent, #009956)" />
-        </div>
-
-        {step === 1 ? (
-          <>
-            <h3 id="change-email-title" style={{ margin: "0 0 6px" }}>
-              Зміна email
-            </h3>
-            <p className="modal-subtitle">
-              Введіть новий email — ми надішлемо код підтвердження
-            </p>
-            <form
-              onSubmit={handleRequestCode}
-              style={{ display: "flex", flexDirection: "column", gap: 12 }}
-            >
-              <input
-                type="email"
-                required
-                placeholder="Новий email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                className="modal-input"
-                autoFocus
-              />
-              {error && (
-                <p
-                  style={{
-                    color: "var(--red, #e53935)",
-                    fontSize: "0.9rem",
-                    margin: 0,
-                  }}
-                >
-                  {error}
-                </p>
-              )}
-              <div className="modal-buttons">
-                <button
-                  type="button"
-                  className="order-btn secondary"
-                  onClick={onClose}
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  Скасувати
-                </button>
-                <button
-                  type="submit"
-                  className="order-btn primary"
-                  disabled={loading}
-                >
-                  {loading ? "Надсилаємо…" : "Надіслати код"}
-                </button>
-              </div>
-            </form>
-          </>
-        ) : (
-          <>
-            <h3 id="change-email-title" style={{ margin: "0 0 6px" }}>
-              Введіть код
-            </h3>
-            <p className="modal-subtitle">
-              Код надіслано на <strong>{newEmail}</strong>
-            </p>
-            <form
-              onSubmit={handleConfirm}
-              style={{ display: "flex", flexDirection: "column", gap: 12 }}
-            >
-              <input
-                type="text"
-                maxLength={6}
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="modal-input"
-                autoFocus
-                style={{
-                  letterSpacing: "0.25em",
-                  textAlign: "center",
-                  fontSize: "1.2rem",
-                }}
-              />
-              {error && (
-                <p
-                  style={{
-                    color: "var(--red, #e53935)",
-                    fontSize: "0.9rem",
-                    margin: 0,
-                  }}
-                >
-                  {error}
-                </p>
-              )}
-              <div className="modal-buttons">
-                <button
-                  type="button"
-                  className="order-btn secondary"
-                  onClick={() => {
-                    setStep(1);
-                    setError("");
-                    setCode("");
-                  }}
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  Назад
-                </button>
-                <button
-                  type="submit"
-                  className="order-btn primary"
-                  disabled={loading}
-                >
-                  {loading ? "Перевіряємо…" : "Підтвердити"}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
+  function ResendTimer() {
+    const target = Date.now() + 60_000;
+    function renderer({ seconds: s, completed }: CountdownRenderProps) {
+      if (completed) {
+        return (
+          <button
+            type="button"
+            onClick={() => {
+              emailForm.reset();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--accent)",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <RefreshCw size={13} /> Надіслати повторно
+          </button>
+        );
+      }
+      return (
+        <span style={{ color: "var(--text-3, #888)", fontSize: "0.9rem" }}>
+          Повторно через {s}с
+        </span>
+      );
+    }
+    return (
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <Countdown date={target} renderer={renderer} />
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <BaseModal
+      onClose={onClose}
+      disableOutsideClick
+      maxWidth={380}
+      aria-labelledby="change-email-title"
+    >
+      <div className="modal-icon-wrap modal-icon-accent">
+        <Mail size={28} color="var(--accent, #009956)" />
+      </div>
+
+      {/* ── Крок 1: новий email ── */}
+      {!step1Done && (
+        <form onSubmit={emailForm.handleSubmit(handleRequestCode)}>
+          <h3 id="change-email-title" style={{ margin: "0 0 6px" }}>
+            Зміна email
+          </h3>
+          <p className="modal-subtitle">
+            Введіть новий email — ми надішлемо код підтвердження
+          </p>
+          <input
+            type="email"
+            placeholder="Новий email"
+            className="modal-input"
+            autoFocus
+            aria-invalid={!!emailForm.formState.errors.email}
+            {...emailForm.register("email")}
+          />
+          {emailForm.formState.errors.email && (
+            <p className="modal-error-text">
+              {emailForm.formState.errors.email.message}
+            </p>
+          )}
+          <div className="modal-buttons" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+            >
+              Скасувати
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={emailForm.formState.isSubmitting}
+            >
+              {emailForm.formState.isSubmitting
+                ? "Надсилаємо…"
+                : "Надіслати код"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Крок 2: OTP ── */}
+      {step1Done && (
+        <form onSubmit={codeForm.handleSubmit(handleConfirm)}>
+          <h3 id="change-email-title" style={{ margin: "0 0 6px" }}>
+            Введіть код
+          </h3>
+          <p className="modal-subtitle">
+            Код надіслано на <strong>{newEmail}</strong>
+          </p>
+          <OtpInput
+            value={code}
+            onChange={(v) =>
+              codeForm.setValue("code", v, { shouldValidate: false })
+            }
+            disabled={codeForm.formState.isSubmitting}
+            hasError={!!codeForm.formState.errors.code}
+          />
+          {codeForm.formState.errors.code && (
+            <p className="modal-error-text" style={{ textAlign: "center" }}>
+              {codeForm.formState.errors.code.message}
+            </p>
+          )}
+          <ResendTimer />
+          <div className="modal-buttons" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                emailForm.reset();
+                codeForm.reset();
+              }}
+            >
+              Назад
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={code.length < 6 || codeForm.formState.isSubmitting}
+            >
+              {codeForm.formState.isSubmitting ? "Перевіряємо…" : "Підтвердити"}
+            </button>
+          </div>
+        </form>
+      )}
+    </BaseModal>
   );
 }

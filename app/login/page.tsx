@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+
 import GoogleIcon from "@/components/GoogleIcon";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ForgotPasswordModal from "@/components/modals/ForgotPasswordModal";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import TwoFactorModal from "@/components/modals/TwoFactorModal";
+import { useFingerprint } from "@/hooks/useFingerprint";
+import { useVerificationStore, isOtpValid } from "@/store/verificationStore";
+import { loginSchema, type LoginFormData } from "@/lib/schemas";
 
 // Карта помилок NextAuth → зрозумілі повідомлення
 const AUTH_ERRORS: Record<string, string> = {
@@ -24,56 +31,98 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // callbackUrl — куди повернути після логіну (напр. /account)
   const callbackUrl = searchParams.get("callbackUrl") || "/shop";
-  // NextAuth помилка з URL (?error=CredentialsSignin)
   const urlError = searchParams.get("error");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Task 2: fingerprint device ID
+  const { deviceId } = useFingerprint();
+
+  // Task 2: 2FA modal state
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
+  const [twoFactorEmail, setTwoFactorEmail] = useState("");
+
+  // Task 4: відновити 2FA якщо юзер закривав модалку
+  const { twoFactor, setTwoFactorOtpSent } = useVerificationStore();
+  const hasActiveTwoFactor =
+    twoFactor.otpSent &&
+    isOtpValid(twoFactor.expiresAt) &&
+    !!twoFactor.pendingEmail;
+
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState(
+  const [serverError, setServerError] = useState(
     urlError ? (AUTH_ERRORS[urlError] ?? AUTH_ERRORS.Default) : "",
   );
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!email || !password) {
-      setError("Введіть email і пароль");
-      return;
-    }
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
-    setLoading(true);
+  async function onSubmit(data: LoginFormData) {
+    setServerError("");
+
     try {
+      /**
+       * Task 2: Надсилаємо deviceId разом з кредами.
+       *
+       * 🔌 ENDPOINT (через auth.ts → Credentials provider):
+       * POST /api/auth/login
+       * Body: { email, password, deviceId: string | null }
+       *
+       * Відповіді бекенду:
+       *  200 { token, user }                → звичайний логін ✓
+       *  200 { requires_2fa: true }          → відкрити TwoFactorModal
+       *  401 { error: "..." }               → невірні креди
+       */
       const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false, // обробляємо вручну
+        email: data.email,
+        password: data.password,
+        deviceId: deviceId ?? "unknown",
+        redirect: false,
       });
 
-      if (result?.error) {
-        setError(AUTH_ERRORS[result.error] ?? AUTH_ERRORS.Default);
+      if (!result) {
+        setServerError(AUTH_ERRORS.Default);
+        return;
+      }
+
+      // Task 2: бекенд просить 2FA через невідомий пристрій
+      // NextAuth передає requires_2fa через error field (налаштовується в auth.ts)
+      if (result.error === "requires_2fa") {
+        setTwoFactorEmail(data.email);
+        setTwoFactorOtpSent(data.email);
+        setShowTwoFactor(true);
+        return;
+      }
+
+      if (result.error) {
+        setServerError(AUTH_ERRORS[result.error] ?? AUTH_ERRORS.Default);
         return;
       }
 
       router.push(callbackUrl);
-      router.refresh(); // оновити серверні компоненти
+      router.refresh();
     } catch {
-      setError("Сталася помилка. Спробуйте ще раз");
-    } finally {
-      setLoading(false);
+      setServerError("Сталася помилка. Спробуйте ще раз");
     }
   }
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
-    // redirect: true — NextAuth сам перенаправить на Google і назад
     await signIn("google", { callbackUrl });
-    // setGoogleLoading(false) не потрібен — сторінка перезавантажиться
+  }
+
+  function handleTwoFactorSuccess(_token: string) {
+    setShowTwoFactor(false);
+    // Після успішної 2FA — NextAuth сесія вже є, просто редіректимо
+    router.push(callbackUrl);
+    router.refresh();
   }
 
   return (
@@ -83,7 +132,7 @@ export default function LoginPage() {
         <div className="register-box">
           <h2 className="register-title">Вхід</h2>
 
-          <form onSubmit={handleSubmit} className="register-form">
+          <form onSubmit={handleSubmit(onSubmit)} className="register-form">
             {/* Email */}
             <div className="register-field">
               <label htmlFor="loginEmail">Email</label>
@@ -93,11 +142,16 @@ export default function LoginPage() {
                   id="loginEmail"
                   type="email"
                   placeholder="example@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
+                  aria-invalid={!!errors.email}
+                  {...register("email")}
                 />
               </div>
+              {errors.email && (
+                <span className="register-hint error">
+                  {errors.email.message}
+                </span>
+              )}
             </div>
 
             {/* Пароль */}
@@ -109,9 +163,9 @@ export default function LoginPage() {
                   id="loginPassword"
                   type={showPw ? "text" : "password"}
                   placeholder="Введіть пароль"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
+                  aria-invalid={!!errors.password}
+                  {...register("password")}
                 />
                 <button
                   type="button"
@@ -122,19 +176,48 @@ export default function LoginPage() {
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {errors.password && (
+                <span className="register-hint error">
+                  {errors.password.message}
+                </span>
+              )}
             </div>
 
-            {error && <p className="register-error">{error}</p>}
+            {serverError && <p className="register-error">{serverError}</p>}
+
+            {/* Task 4: якщо є незавершена 2FA — показуємо підказку */}
+            {hasActiveTwoFactor && !showTwoFactor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTwoFactorEmail(twoFactor.pendingEmail!);
+                  setShowTwoFactor(true);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "1.5px solid var(--accent, #009956)",
+                  background: "rgba(0,153,86,0.06)",
+                  color: "var(--accent, #009956)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  marginBottom: 4,
+                }}
+              >
+                ↩ Продовжити підтвердження входу (код ще дійсний)
+              </button>
+            )}
 
             <button
               className="register-button"
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? "Вхід..." : "Увійти"}
+              {isSubmitting ? "Вхід..." : "Увійти"}
             </button>
 
-            {/* Google */}
             <div className="google-login">
               <button
                 id="google-login-btn"
@@ -163,6 +246,16 @@ export default function LoginPage() {
         </div>
       </main>
       <Footer />
+
+      {/* Task 2: 2FA модалка */}
+      {showTwoFactor && (
+        <TwoFactorModal
+          email={twoFactorEmail || (getValues("email") ?? "")}
+          deviceId={deviceId}
+          onSuccess={handleTwoFactorSuccess}
+          onClose={() => setShowTwoFactor(false)}
+        />
+      )}
 
       {forgotOpen && (
         <ForgotPasswordModal onClose={() => setForgotOpen(false)} />

@@ -1,9 +1,18 @@
 "use client";
 
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import { X, ShieldCheck } from "lucide-react";
+import BaseModal from "./BaseModal";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+const schema = z.object({
+  password: z.string().min(1, "Введіть пароль"),
+});
+type FormData = z.infer<typeof schema>;
 
 interface Props {
   token: string;
@@ -16,18 +25,16 @@ export default function ConfirmPasswordModal({
   onSuccess,
   onClose,
 }: Props) {
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [showPw, setShowPw] = useState(false);
 
-  async function handleConfirm(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!password) {
-      setError("Введіть пароль");
-      return;
-    }
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  async function onSubmit(data: FormData) {
     try {
       const res = await fetch(`${BASE}/api/auth/password`, {
         method: "PUT",
@@ -35,93 +42,95 @@ export default function ConfirmPasswordModal({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // We send old == new so password doesn't actually change
-        body: JSON.stringify({ oldPassword: password, newPassword: password }),
+        body: JSON.stringify({
+          oldPassword: data.password,
+          newPassword: data.password,
+        }),
       });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const msg = data?.error ?? `HTTP ${res.status}`;
-        if (res.status === 400 && msg.toLowerCase().includes("старий")) {
-          setError("Невірний пароль");
-        } else {
-          setError(msg);
-        }
+        const body = await res.json().catch(() => ({}));
+        const msg = body?.error ?? `HTTP ${res.status}`;
+        setError("password", {
+          message: res.status === 400 ? "Невірний пароль" : msg,
+        });
         return;
       }
+
       onSuccess();
     } catch {
-      setError("Помилка мережі. Спробуйте ще раз.");
-    } finally {
-      setLoading(false);
+      setError("password", { message: "Помилка мережі. Спробуйте ще раз." });
     }
   }
 
   return (
-    <div
-      className="modal"
-      role="dialog"
-      aria-modal="true"
+    <BaseModal
+      onClose={onClose}
+      disableOutsideClick
+      maxWidth={380}
       aria-labelledby="confirm-pw-title"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 380 }}>
-        <button className="modal-close" onClick={onClose} aria-label="Закрити">
-          <X size={16} />
-        </button>
+      <div className="modal-icon-wrap modal-icon-accent">
+        <ShieldCheck size={28} color="var(--accent, #009956)" />
+      </div>
 
-        <div className="modal-icon-wrap modal-icon-accent">
-          <ShieldCheck size={28} color="var(--accent, #009956)" />
-        </div>
+      <h3 id="confirm-pw-title" style={{ margin: "0 0 6px" }}>
+        Підтвердьте особистість
+      </h3>
+      <p className="modal-subtitle">
+        Введіть ваш пароль для доступу до платіжних даних
+      </p>
 
-        <h3 id="confirm-pw-title" style={{ margin: "0 0 6px" }}>
-          Підтвердьте особистість
-        </h3>
-        <p className="modal-subtitle">
-          Введіть ваш пароль для доступу до платіжних даних
-        </p>
-
-        <form
-          onSubmit={handleConfirm}
-          style={{ display: "flex", flexDirection: "column", gap: 12 }}
-        >
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      >
+        <div style={{ position: "relative" }}>
           <input
-            type="password"
+            type={showPw ? "text" : "password"}
             placeholder="Ваш пароль"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             className="modal-input"
             autoFocus
+            aria-invalid={!!errors.password}
+            {...register("password")}
           />
-          {error && (
-            <p
-              style={{
-                color: "var(--red, #e53935)",
-                fontSize: "0.9rem",
-                margin: 0,
-              }}
-            >
-              {error}
-            </p>
-          )}
-          <div className="modal-buttons">
-            <button
-              type="button"
-              className="order-btn secondary"
-              onClick={onClose}
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              Скасувати
-            </button>
-            <button
-              type="submit"
-              className="order-btn primary"
-              disabled={loading}
-            >
-              {loading ? "Перевіряємо…" : "Підтвердити"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          <button
+            type="button"
+            onClick={() => setShowPw((v) => !v)}
+            aria-label="Показати пароль"
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-2, #aaa)",
+              display: "flex",
+            }}
+          >
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+
+        {errors.password && (
+          <p className="modal-error-text">{errors.password.message}</p>
+        )}
+
+        <div className="modal-buttons">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Скасувати
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Перевіряємо…" : "Підтвердити"}
+          </button>
+        </div>
+      </form>
+    </BaseModal>
   );
 }

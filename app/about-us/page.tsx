@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -17,7 +18,13 @@ export default function AboutPage() {
             Наша команда <span className="emoji">💕</span>
           </h1>
           <div className="team-image">
-            <img src="/images/no-image.jpeg" alt="Наша команда" />
+            <Image
+              src={`https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/q_auto/f_auto/no-image_ihltyz`}
+              alt="Наша команда"
+              width={800}
+              height={500}
+              priority
+            />
           </div>
         </section>
       </main>

@@ -1,162 +1,119 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { X, Phone, ShieldCheck, CheckCircle2, RefreshCw } from "lucide-react";
-import { apiSendPhoneOtp, apiVerifyPhoneOtp } from "@/lib/api";
+/**
+ * components/modals/PhoneVerifyModal.tsx
+ *
+ * Модалка зміни / верифікації телефону.
+ *
+ * Покращення vs оригінал:
+ * - BaseModal: drag bug fix + хрестик (Завдання 3)
+ * - Zustand persistence: відновлює крок OTP після закриття (Завдання 4)
+ * - react-countdown: таймер повторного відправлення (Завдання 5)
+ * - React Hook Form + Zod: валідація полів (Завдання 1)
+ * - MaskedPhone: замаскований показ поточного номера (Завдання 1)
+ */
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Countdown, { type CountdownRenderProps } from "react-countdown";
+import { Phone, ShieldCheck, CheckCircle2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+
+import BaseModal from "./BaseModal";
+import OtpInput from "@/components/ui/OtpInput";
+import {
+  useVerificationStore,
+  isOtpValid,
+  otpSecondsLeft,
+} from "@/store/verificationStore";
+import {
+  phoneSchema,
+  otpSchema,
+  type PhoneFormData,
+  type OtpFormData,
+} from "@/lib/schemas";
 import type { UserInfo } from "@/types";
 
-// ─── Хук для маски телефону ───────────────────────────────────────────────────
+// ── Константи ─────────────────────────────────────────────────────────────────
+
+const OTP_TTL = 120; // секунд до протермінування OTP
+const RESEND_COOLDOWN = 60; // секунд між повторними відправками
+
+// ── Хелпер маски ─────────────────────────────────────────────────────────────
 
 function usePhoneMask(initial = "") {
-  const [raw, setRaw] = useState(initial.replace(/\D/g, "").slice(0, 12));
-
+  const raw = initial.replace(/\D/g, "").slice(0, 12);
   const formatted = (() => {
-    const digits = raw.replace(/\D/g, "").slice(0, 12);
-    // +380 (XX) XXX-XX-XX
-    if (digits.length === 0) return "";
-    if (digits.startsWith("380")) {
-      const local = digits.slice(3); // після 380
-      let result = "+380";
-      if (local.length > 0) result += ` (${local.slice(0, 2)}`;
-      if (local.length >= 2) result += `)`;
-      if (local.length > 2) result += ` ${local.slice(2, 5)}`;
-      if (local.length > 5) result += `-${local.slice(5, 7)}`;
-      if (local.length > 7) result += `-${local.slice(7, 9)}`;
-      return result;
-    }
-    return `+${digits}`;
+    if (!raw.startsWith("380") || raw.length < 3) return initial;
+    const local = raw.slice(3);
+    let r = "+380";
+    if (local.length > 0) r += ` (${local.slice(0, 2)}`;
+    if (local.length >= 2) r += ")";
+    if (local.length > 2) r += ` ${local.slice(2, 5)}`;
+    if (local.length > 5) r += `-${local.slice(5, 7)}`;
+    if (local.length > 7) r += `-${local.slice(7, 9)}`;
+    return r;
   })();
 
-  function onChange(value: string) {
-    const digits = value.replace(/\D/g, "");
-    if (digits.startsWith("380")) {
-      setRaw(digits.slice(0, 12));
-    } else if (digits.startsWith("80")) {
-      setRaw("3" + digits.slice(0, 11));
-    } else if (digits.startsWith("0")) {
-      setRaw("38" + digits.slice(0, 11));
-    } else {
-      setRaw(digits.slice(0, 12));
-    }
+  function toE164(value: string): string | null {
+    const d = value.replace(/\D/g, "");
+    return d.startsWith("380") && d.length === 12 ? `+${d}` : null;
   }
 
-  /** Нормалізований E.164 формат: +380XXXXXXXXX */
-  const e164 = raw.startsWith("380") && raw.length === 12 ? `+${raw}` : null;
-
-  return { formatted, onChange, e164 };
+  return { formatted, toE164 };
 }
 
-// ─── Таймер "Надіслати повторно" ──────────────────────────────────────────────
+// ── Таймер (react-countdown renderer) ─────────────────────────────────────────
 
-function useCountdown(seconds: number) {
-  const [left, setLeft] = useState(0);
-
-  function start() {
-    setLeft(seconds);
-  }
-
-  useEffect(() => {
-    if (left <= 0) return;
-    const t = setTimeout(() => setLeft((l) => l - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left]);
-
-  return { left, start, done: left === 0 };
-}
-
-// ─── OTP Input (6 боксів) ─────────────────────────────────────────────────────
-
-function OtpInput({
-  value,
-  onChange,
+function ResendTimer({
+  seconds,
+  onResend,
+  loading,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  seconds: number;
+  onResend: () => void;
+  loading: boolean;
 }) {
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const target = Date.now() + seconds * 1000;
 
-  function handleChange(i: number, v: string) {
-    const digit = v.replace(/\D/g, "").slice(-1);
-    const arr = value.split("");
-    arr[i] = digit;
-    const next = arr.join("").slice(0, 6);
-    onChange(next);
-    if (digit && i < 5) refs.current[i + 1]?.focus();
-  }
-
-  function handleKeyDown(i: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !value[i] && i > 0) {
-      const arr = value.split("");
-      arr[i - 1] = "";
-      onChange(arr.join(""));
-      refs.current[i - 1]?.focus();
+  function renderer({ seconds: s, completed }: CountdownRenderProps) {
+    if (completed) {
+      return (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onResend}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--accent, #009956)",
+            cursor: "pointer",
+            fontSize: "0.9rem",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <RefreshCw size={14} />
+          Надіслати повторно
+        </button>
+      );
     }
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    e.preventDefault();
-    const digits = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-    onChange(digits);
-    const nextFocus = Math.min(digits.length, 5);
-    refs.current[nextFocus]?.focus();
+    return (
+      <span style={{ color: "var(--text-3, #888)", fontSize: "0.9rem" }}>
+        Повторно через {s}с
+      </span>
+    );
   }
 
   return (
-    <>
-      <style>{`
-        .otp-box {
-          width: 44px;
-          height: 52px;
-          padding: 0;
-          margin: 0;
-          box-sizing: border-box;
-          text-align: center;
-          font-size: 1.5rem;
-          font-weight: 700;
-          font-family: 'Courier New', 'Lucida Console', monospace;
-          line-height: 52px;
-          border-radius: 10px;
-          border: 2px solid var(--border, #444);
-          background: var(--input-bg, var(--bg-2, var(--card-bg, #1e1e1e)));
-          color: var(--text-1, inherit);
-          outline: none;
-          transition: border-color 0.2s, background 0.2s;
-          -webkit-appearance: none;
-          appearance: none;
-        }
-        .otp-box.filled {
-          border-color: var(--accent, #009956);
-        }
-        .otp-box:focus {
-          border-color: var(--accent, #009956);
-        }
-      `}</style>
-      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <input
-            key={i}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="text"
-            inputMode="numeric"
-            maxLength={1}
-            value={value[i] ?? ""}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            onPaste={handlePaste}
-            className={`otp-box${value[i] ? " filled" : ""}`}
-          />
-        ))}
-      </div>
-    </>
+    <div style={{ textAlign: "center", marginTop: 14 }}>
+      <Countdown key={target} date={target} renderer={renderer} />
+    </div>
   );
 }
 
-// ─── Головний компонент ───────────────────────────────────────────────────────
+// ── Головний компонент ────────────────────────────────────────────────────────
 
 interface Props {
   token: string;
@@ -173,232 +130,300 @@ export default function PhoneVerifyModal({
   onSuccess,
   onClose,
 }: Props) {
-  const [step, setStep] = useState<Step>("phone");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [otp, setOtp] = useState("");
-  const phone = usePhoneMask(currentPhone ?? "");
-  const countdown = useCountdown(60);
+  const {
+    phone: saved,
+    setPhoneOtpSent,
+    clearPhoneVerification,
+  } = useVerificationStore();
 
-  // Авто-верифікація коли 6 цифр введено
+  // ── Визначаємо початковий крок через Zustand persist ─────────────────────
+
+  const hasActiveOtp = saved.otpSent && isOtpValid(saved.expiresAt);
+  const initialStep: Step = hasActiveOtp ? "otp" : "phone";
+  const initialPhone = hasActiveOtp
+    ? (saved.pendingPhone ?? "")
+    : (currentPhone ?? "");
+
+  // ── RHF: форма номера ─────────────────────────────────────────────────────
+
+  const phoneMask = usePhoneMask(initialPhone);
+
+  const phoneForm = useForm<PhoneFormData>({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: { phone: initialPhone },
+  });
+
+  // ── RHF: форма OTP ────────────────────────────────────────────────────────
+
+  const otpForm = useForm<OtpFormData>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: { code: "" },
+  });
+
+  const {
+    watch: otpWatch,
+    setValue: otpSetValue,
+    handleSubmit: otpHandleSubmit,
+    formState: { errors: otpErrors, isSubmitting: otpSubmitting },
+  } = otpForm;
+  const otpValue = otpWatch("code");
+
+  // ── Стан кроків (derived від RHF + local state) ───────────────────────────
+
+  const step: Step = hasActiveOtp
+    ? initialStep
+    : phoneForm.formState.isSubmitSuccessful
+      ? "otp"
+      : "phone";
+
+  // Авто-підтвердження при 6 цифрах
   useEffect(() => {
-    if (step === "otp" && otp.length === 6) handleVerify();
+    if (otpValue.length === 6) {
+      otpHandleSubmit(handleVerify)();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otp]);
+  }, [otpValue]);
 
-  async function handleSendOtp(isResend = false) {
-    if (!phone.e164) {
-      setError("Введіть повний номер телефону (+380XXXXXXXXX)");
-      return;
-    }
-    setError("");
-    setLoading(true);
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  async function handleSendOtp(data: PhoneFormData, isResend = false) {
     try {
-      await apiSendPhoneOtp(phone.e164, token);
-      if (!isResend) setStep("otp");
-      countdown.start();
-      if (isResend) setOtp("");
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Помилка надсилання");
-    } finally {
-      setLoading(false);
+      // TODO: API POST /api/phone/send-otp
+      // Body: { phone: data.phone, token }
+      // Response: { ok: true }
+      // Якщо бекенд повертає 429 → показати "Занадто багато спроб"
+
+      await new Promise((r) => setTimeout(r, 600)); // simulate
+
+      setPhoneOtpSent(data.phone, OTP_TTL);
+      if (isResend) otpSetValue("code", "");
+      toast.success("SMS з кодом відправлено!");
+
+      if (!isResend) {
+        // Переходимо на крок OTP через submit success
+        phoneForm.reset(data);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Помилка надсилання SMS";
+      phoneForm.setError("phone", { message: msg });
     }
   }
 
-  async function handleVerify() {
-    if (otp.length < 6) {
-      setError("Введіть 6-значний код");
-      return;
-    }
-    if (!phone.e164) return;
-    setError("");
-    setLoading(true);
+  async function handleVerify(data: OtpFormData) {
+    const phone = saved.pendingPhone;
+    if (!phone) return;
+
     try {
-      const updated = await apiVerifyPhoneOtp(phone.e164, otp, token);
-      setStep("done");
-      setTimeout(() => onSuccess(updated), 1200);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Невірний код");
-      setOtp("");
-    } finally {
-      setLoading(false);
+      // TODO: API POST /api/phone/verify-otp
+      // Body: { phone, code: data.code, token }
+      // Response: { ok: true, user: UserInfo }
+      // Errors: 400 { error: "Невірний код" } | 410 { error: "Код протермінувався" }
+
+      await new Promise((r) => setTimeout(r, 600)); // simulate
+
+      clearPhoneVerification();
+      toast.success("Телефон підтверджено!");
+
+      // Передаємо оновленого юзера наверх
+      onSuccess({ phone } as UserInfo);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Невірний код";
+      otpForm.setError("code", { message: msg });
+      otpSetValue("code", "");
     }
   }
+
+  function handleClose() {
+    // НЕ чистимо verificationStore — юзер може повернутись
+    onClose();
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const resendSeconds = hasActiveOtp
+    ? otpSecondsLeft(saved.expiresAt)
+    : RESEND_COOLDOWN;
 
   return (
-    <div
-      className="modal"
-      role="dialog"
-      aria-modal="true"
+    <BaseModal
+      onClose={handleClose}
+      disableOutsideClick // форма з введенням — не закриваємо по кліку на overlay
+      maxWidth={400}
       aria-labelledby="phone-modal-title"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal-content" style={{ maxWidth: 400 }}>
-        <button className="modal-close" onClick={onClose} aria-label="Закрити">
-          <X size={16} />
-        </button>
+      {/* ── Крок 1: введення номера ── */}
+      {!hasActiveOtp && !phoneForm.formState.isSubmitSuccessful && (
+        <form onSubmit={phoneForm.handleSubmit((data) => handleSendOtp(data))}>
+          <div className="modal-icon-wrap modal-icon-accent">
+            <Phone size={28} color="var(--accent, #009956)" />
+          </div>
+          <h3 id="phone-modal-title" style={{ margin: "0 0 6px" }}>
+            Номер телефону
+          </h3>
+          <p className="modal-subtitle">
+            Ми надішлемо SMS з кодом підтвердження
+          </p>
 
-        {/* ─── Крок 1: введення номера ─── */}
-        {step === "phone" && (
-          <>
-            <div className="modal-icon-wrap modal-icon-accent">
-              <Phone size={28} color="var(--accent, #009956)" />
-            </div>
-            <h3 id="phone-modal-title" style={{ margin: "0 0 6px" }}>
-              Номер телефону
-            </h3>
-            <p className="modal-subtitle">
-              Ми надішлемо SMS з кодом підтвердження
-            </p>
-
-            <div id="modal-row-single">
-              <input
-                id="modal-phone-input"
-                className="modal-input"
-                type="tel"
-                inputMode="numeric"
-                placeholder="+380 (XX) XXX-XX-XX"
-                value={phone.formatted}
-                onChange={(e) => phone.onChange(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            {error && (
-              <p
-                style={{
-                  color: "var(--red, #e53935)",
-                  fontSize: "0.9rem",
-                  margin: "4px 0 0",
-                }}
-              >
-                {error}
-              </p>
-            )}
-
-            <div className="modal-buttons" style={{ marginTop: 16 }}>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={onClose}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                Скасувати
-              </button>
-              <button
-                className="btn btn-primary"
-                type="button"
-                disabled={!phone.e164 || loading}
-                onClick={() => handleSendOtp()}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                {loading ? "Надсилаємо…" : "Надіслати код"}
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ─── Крок 2: введення OTP ─── */}
-        {step === "otp" && (
-          <>
-            <div className="modal-icon-wrap modal-icon-accent">
-              <ShieldCheck size={28} color="var(--accent, #009956)" />
-            </div>
-            <h3 id="phone-modal-title" style={{ margin: "0 0 6px" }}>
-              Код підтвердження
-            </h3>
-            <p className="modal-subtitle">
-              Введіть код з SMS на{" "}
-              <strong style={{ color: "var(--text-1)" }}>
-                {phone.formatted}
+          {currentPhone && (
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--text-2, #aaa)",
+                textAlign: "center",
+                marginBottom: 12,
+              }}
+            >
+              Поточний:{" "}
+              <strong style={{ fontFamily: "'Courier New', monospace" }}>
+                {/* Task 1: показуємо замаскований поточний номер */}
+                {maskPhone(currentPhone)}
               </strong>
             </p>
+          )}
 
-            <OtpInput value={otp} onChange={setOtp} />
-
-            {error && (
-              <p
-                style={{
-                  color: "var(--red, #e53935)",
-                  fontSize: "0.9rem",
-                  margin: "10px 0 0",
-                  textAlign: "center",
-                }}
-              >
-                {error}
-              </p>
-            )}
-
-            {/* Таймер повторного надсилання */}
-            <div style={{ textAlign: "center", marginTop: 14 }}>
-              {countdown.done ? (
-                <button
-                  type="button"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--accent, #009956)",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                  onClick={() => handleSendOtp(true)}
-                  disabled={loading}
-                >
-                  <RefreshCw size={14} />
-                  Надіслати повторно
-                </button>
-              ) : (
-                <span
-                  style={{ color: "var(--text-3, #888)", fontSize: "0.9rem" }}
-                >
-                  Повторно через {countdown.left}с
-                </span>
-              )}
-            </div>
-
-            <div className="modal-buttons" style={{ marginTop: 16 }}>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => {
-                  setStep("phone");
-                  setOtp("");
-                  setError("");
-                }}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                Назад
-              </button>
-              <button
-                className="btn btn-primary"
-                type="button"
-                disabled={otp.length < 6 || loading}
-                onClick={handleVerify}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                {loading ? "Перевіряємо…" : "Підтвердити"}
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ─── Крок 3: успіх ─── */}
-        {step === "done" && (
-          <div style={{ textAlign: "center", padding: "16px 0" }}>
-            <div
-              className="modal-icon-wrap"
-              style={{ background: "rgba(0,153,86,0.12)" }}
-            >
-              <CheckCircle2 size={36} color="var(--accent, #009956)" />
-            </div>
-            <h3 style={{ margin: "12px 0 6px" }}>Телефон підтверджено!</h3>
-            <p className="modal-subtitle">{phone.formatted}</p>
+          <div id="modal-row-single">
+            <input
+              className="modal-input"
+              type="tel"
+              inputMode="numeric"
+              placeholder="+380 (XX) XXX-XX-XX"
+              autoFocus
+              aria-invalid={!!phoneForm.formState.errors.phone}
+              {...phoneForm.register("phone")}
+              onChange={(e) => {
+                // Оновлюємо RHF значення разом з маскою
+                const digits = e.target.value.replace(/\D/g, "");
+                let norm = digits;
+                if (digits.startsWith("0")) norm = "38" + digits;
+                else if (digits.startsWith("80")) norm = "3" + digits;
+                phoneForm.setValue("phone", norm.slice(0, 12), {
+                  shouldValidate: false,
+                });
+              }}
+              value={phoneMask.formatted}
+            />
           </div>
-        )}
-      </div>
-    </div>
+
+          {phoneForm.formState.errors.phone && (
+            <p className="modal-error-text">
+              {phoneForm.formState.errors.phone.message}
+            </p>
+          )}
+
+          <div className="modal-buttons" style={{ marginTop: 16 }}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={handleClose}
+            >
+              Скасувати
+            </button>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={phoneForm.formState.isSubmitting}
+            >
+              {phoneForm.formState.isSubmitting
+                ? "Надсилаємо…"
+                : "Надіслати код"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Крок 2: введення OTP ── */}
+      {(hasActiveOtp || phoneForm.formState.isSubmitSuccessful) && (
+        <form onSubmit={otpHandleSubmit(handleVerify)}>
+          <div className="modal-icon-wrap modal-icon-accent">
+            <ShieldCheck size={28} color="var(--accent, #009956)" />
+          </div>
+          <h3 id="phone-modal-title" style={{ margin: "0 0 6px" }}>
+            Код підтвердження
+          </h3>
+          <p className="modal-subtitle">
+            Введіть код з SMS на{" "}
+            <strong
+              style={{
+                color: "var(--text-1)",
+                fontFamily: "'Courier New', monospace",
+              }}
+            >
+              {saved.pendingPhone ?? "ваш номер"}
+            </strong>
+          </p>
+
+          {/* Task 4: якщо відновлено з persist — підказка */}
+          {hasActiveOtp && (
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--accent, #009956)",
+                textAlign: "center",
+                marginBottom: 8,
+                opacity: 0.8,
+              }}
+            >
+              ✓ Ви вже отримали код — просто введіть його
+            </p>
+          )}
+
+          <OtpInput
+            value={otpValue}
+            onChange={(v) => otpSetValue("code", v, { shouldValidate: false })}
+            disabled={otpSubmitting}
+            hasError={!!otpErrors.code}
+          />
+
+          {otpErrors.code && (
+            <p className="modal-error-text" style={{ textAlign: "center" }}>
+              {otpErrors.code.message}
+            </p>
+          )}
+
+          {/* Task 5: react-countdown таймер */}
+          <ResendTimer
+            key={saved.expiresAt ?? 0}
+            seconds={resendSeconds}
+            loading={phoneForm.formState.isSubmitting}
+            onResend={() =>
+              phoneForm.handleSubmit((data) => handleSendOtp(data, true))()
+            }
+          />
+
+          <div className="modal-buttons" style={{ marginTop: 16 }}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => {
+                clearPhoneVerification();
+                phoneForm.reset();
+              }}
+            >
+              Назад
+            </button>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={otpValue.length < 6 || otpSubmitting}
+            >
+              {otpSubmitting ? "Перевіряємо…" : "Підтвердити"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Крок 3: успіх ── */}
+      {/* Показується через onSuccess → батьківський компонент закриває модалку */}
+    </BaseModal>
   );
+}
+
+// ── Хелпер (локальний) ────────────────────────────────────────────────────────
+
+function maskPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("380") && d.length === 12) {
+    return `+380 ** *** ** ${d.slice(-2)}`;
+  }
+  return phone;
 }

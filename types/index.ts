@@ -83,7 +83,7 @@ export type WayForPayInitResult =
         clientFirstName?: string;
         clientEmail?: string;
         serviceUrl: string; // URL webhook-у (бекенд)
-        returnUrl: string;  // куди повернути юзера після WayForPay
+        returnUrl: string; // куди повернути юзера після WayForPay
         paymentSystems: string; // "card"
       };
     };
