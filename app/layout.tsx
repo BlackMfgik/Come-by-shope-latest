@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import Providers from "@/components/Providers";
 import "./globals.css";
+
+// ⚠️ Попередження під час збірки якщо змінна не визначена
+if (!process.env.NEXT_PUBLIC_SITE_URL) {
+  console.warn(
+    "[layout] NEXT_PUBLIC_SITE_URL не визначено. Буде використано https://come-by-shop.com",
+  );
+}
 
 export const metadata: Metadata = {
   title: {
@@ -21,7 +29,7 @@ export const metadata: Metadata = {
         url: `https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/f_webp,q_auto/dhaneshdamodaran-fruits-7357732_1920_ozytfx`,
         width: 1200,
         height: 630,
-        alt: "Come by Shop",
+        alt: "Come by Shop — інтернет-магазин їжі та напоїв",
       },
     ],
   },
@@ -33,10 +41,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // CSS змінні --font-syne і --font-dm-sans доступні в усьому CSS
     <html lang="uk">
       <body suppressHydrationWarning>
         <Providers>{children}</Providers>
+        {/* WayForPay widget script — lazyOnload щоб не блокувати рендер */}
+        <Script
+          src="https://secure.wayforpay.com/server/pay-widget.js"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

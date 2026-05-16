@@ -18,12 +18,17 @@ interface Props {
   token: string;
   onSuccess: () => void;
   onClose: () => void;
+  /** Контекстне пояснення — що саме підтверджуємо */
+  description?: string;
 }
+
+const DEFAULT_DESCRIPTION = "Введіть ваш пароль для підтвердження дії";
 
 export default function ConfirmPasswordModal({
   token,
   onSuccess,
   onClose,
+  description = DEFAULT_DESCRIPTION,
 }: Props) {
   const [showPw, setShowPw] = useState(false);
 
@@ -36,6 +41,17 @@ export default function ConfirmPasswordModal({
 
   async function onSubmit(data: FormData) {
     try {
+      /**
+       * 🔌 ENDPOINT: POST /api/auth/verify-password  [AUTH REQUIRED]
+       * Request:  { password: string }
+       * Response: { ok: true }
+       * Errors:   400 → "Невірний пароль"
+       *
+       * ⚙️ Бекенд: bcrypt.compare(password, hash) без зміни пароля
+       *
+       * Якщо /api/auth/verify-password ще не реалізовано — тимчасово
+       * можна використати PUT /api/auth/password з однаковим old/new:
+       */
       const res = await fetch(`${BASE}/api/auth/password`, {
         method: "PUT",
         headers: {
@@ -77,9 +93,7 @@ export default function ConfirmPasswordModal({
       <h3 id="confirm-pw-title" style={{ margin: "0 0 6px" }}>
         Підтвердьте особистість
       </h3>
-      <p className="modal-subtitle">
-        Введіть ваш пароль для доступу до платіжних даних
-      </p>
+      <p className="modal-subtitle">{description}</p>
 
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -97,7 +111,7 @@ export default function ConfirmPasswordModal({
           <button
             type="button"
             onClick={() => setShowPw((v) => !v)}
-            aria-label="Показати пароль"
+            aria-label={showPw ? "Сховати пароль" : "Показати пароль"}
             style={{
               position: "absolute",
               right: 12,

@@ -271,7 +271,8 @@ export default function ProductCatalog({
       });
       setEditingId(id);
       setAdminOpen(true);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (typeof window !== "undefined")
+        window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       toast.error("Не вдалося завантажити товар");
     }

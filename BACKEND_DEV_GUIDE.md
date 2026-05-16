@@ -14,8 +14,10 @@
 - Особистий кабінет (профіль, адреса, телефон, картка)
 - Адмін-панель (CRUD товарів)
 - Авторизація через email+пароль і Google OAuth
+- 2FA при вході з нового пристрою (через TurboSMS)
+- Верифікація телефону через SMS OTP
 
-**Стек фронтенду:** Next.js 14 (App Router, SSR), TypeScript, NextAuth.js, Zustand, TanStack Query
+**Стек фронтенду:** Next.js 15 (App Router, SSR), TypeScript, NextAuth.js v5, Zustand, TanStack Query
 
 ---
 
@@ -60,6 +62,25 @@ CREATE TABLE users (
   admin            BOOLEAN DEFAULT false,
   created_at       TIMESTAMP DEFAULT NOW(),
   updated_at       TIMESTAMP DEFAULT NOW()
+);
+
+-- Відомі пристрої (для 2FA)
+CREATE TABLE user_devices (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id  VARCHAR(255) NOT NULL,             -- FingerprintJS visitorId
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, device_id)
+);
+
+-- 2FA коди при логіні з нового пристрою
+CREATE TABLE two_factor_codes (
+  id            SERIAL PRIMARY KEY,
+  user_id       INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  device_id     VARCHAR(255) NOT NULL,
+  code          VARCHAR(6) NOT NULL,
+  expires_at    TIMESTAMP NOT NULL,             -- NOW() + INTERVAL '10 minutes'
+  attempts      INT DEFAULT 0
 );
 
 -- OTP коди для верифікації телефону
@@ -129,17 +150,21 @@ CREATE TABLE order_items (
 
 ## 🔐 Авторизація — як це працює
 
-Фронтенд використовує **NextAuth.js**. Схема:
+Фронтенд використовує **NextAuth.js v5**. Схема:
 
 ```
 1. Юзер вводить email+пароль → фронтенд дзвонить POST /api/auth/login
-2. Бекенд перевіряє → повертає { token, user }
-3. NextAuth зберігає token в зашифрованій httpOnly cookie
-4. Всі наступні захищені запити йдуть з заголовком Authorization: Bearer <token>
+2. Якщо deviceId невідомий → бекенд повертає { requires_2fa: true }
+   Фронт відкриває TwoFactorModal і чекає підтвердження
+3. Якщо deviceId відомий або 2FA пройдено → бекенд повертає { token, user }
+4. NextAuth зберігає token в зашифрованій httpOnly cookie
+5. Всі наступні захищені запити йдуть з заголовком Authorization: Bearer <token>
 ```
 
+**FingerprintJS:** фронтенд генерує унікальний `deviceId` через `@fingerprintjs/fingerprintjs` і передає його при логіні. Бекенд перевіряє чи є цей `device_id` в таблиці `user_devices`.
+
 **JWT токен** має містити мінімум: `{ sub: userId, exp: timestamp }`  
-**TTL токена:** рекомендовано 30 днів (фронтенд налаштований на 30 _ 24 _ 60 \* 60)
+**TTL токена:** рекомендовано 30 днів (фронтенд налаштований на 30 × 24 × 60 × 60)
 
 ---
 
@@ -194,18 +219,21 @@ CREATE TABLE order_items (
 
 #### `POST /api/auth/login`
 
-Вхід користувача. Головний ендпоінт авторизації.
+Вхід користувача. Головний ендпоінт авторизації. Підтримує 2FA для нових пристроїв.
 
 **Що отримує бекенд:**
 
 ```json
 {
   "email": "user@example.com",
-  "password": "password123"
+  "password": "password123",
+  "deviceId": "abc123xyz"
 }
 ```
 
-**Що повертає при успіху `200`:**
+> `deviceId` — генерується FingerprintJS на фронтенді. Може бути відсутнім якщо FingerprintJS не завантажився — у такому випадку вважати пристрій невідомим.
+
+**Що повертає при успіху `200` (пристрій відомий):**
 
 ```json
 {
@@ -225,7 +253,13 @@ CREATE TABLE order_items (
 }
 ```
 
-> 📌 Поля `card_masked_pan` і `card_type` можуть бути `null` якщо картка не додана.
+**Що повертає при новому пристрої `200`:**
+
+```json
+{ "requires_2fa": true }
+```
+
+> Фронт відкриває `TwoFactorModal`. Бекенд при цьому відразу ж надсилає SMS з кодом на телефон юзера (або чекає на окремий виклик `/api/auth/2fa/send`).
 
 **Помилки:**
 | Код | Коли |
@@ -238,8 +272,99 @@ CREATE TABLE order_items (
 1. SELECT * FROM users WHERE email = $1
 2. bcrypt.compare(password, user.password_hash)
 3. Якщо не співпадає → 401
-4. Згенерувати JWT: jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '30d' })
-5. Повернути { token, user }
+4. Якщо deviceId є → SELECT id FROM user_devices WHERE user_id=$1 AND device_id=$2
+5. Якщо пристрій НЕ знайдено:
+   → Повернути { requires_2fa: true }
+   (опційно: відразу надіслати SMS — якщо не хочеш окремий /2fa/send)
+6. Якщо пристрій відомий або deviceId відсутній:
+   → Згенерувати JWT: jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '30d' })
+   → Повернути { token, user }
+```
+
+---
+
+#### `POST /api/auth/2fa/send`
+
+Надіслати SMS з 2FA кодом на телефон юзера при логіні з нового пристрою.
+
+**Що отримує бекенд:**
+
+```json
+{
+  "email": "user@example.com",
+  "deviceId": "abc123xyz"
+}
+```
+
+**Що повертає при успіху `200`:**
+
+```json
+{ "ok": true }
+```
+
+**Помилки:**
+| Код | Коли |
+|-----|------|
+| `404` | `{ "error": "Користувача не знайдено" }` |
+| `400` | `{ "error": "Телефон не верифіковано" }` |
+| `429` | `{ "error": "Забагато запитів" }` |
+
+**Логіка бекенду:**
+
+```
+1. SELECT id, phone FROM users WHERE email = $1
+2. Якщо phone відсутній або phone_verified = false → 400
+3. Згенерувати 6-значний код
+4. INSERT INTO two_factor_codes (user_id, device_id, code, expires_at)
+   expires_at = NOW() + INTERVAL '10 minutes'
+   ON CONFLICT (user_id) DO UPDATE SET ...
+5. Надіслати SMS через TurboSMS:
+   "Ваш код входу Come by Shop: 123456. Дійсний 10 хвилин."
+6. Повернути { ok: true }
+```
+
+---
+
+#### `POST /api/auth/2fa/verify`
+
+Підтвердити 2FA код і завершити логін. Після успіху — пристрій запам'ятовується.
+
+**Що отримує бекенд:**
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "deviceId": "abc123xyz"
+}
+```
+
+**Що повертає при успіху `200`:**
+
+```json
+{
+  "token": "eyJ...",
+  "user": { ...такий самий об'єкт як у /login... }
+}
+```
+
+**Помилки:**
+| Код | Коли |
+|-----|------|
+| `400` | `{ "error": "Невірний або застарілий код" }` |
+| `429` | `{ "error": "Забагато спроб" }` |
+
+**Логіка бекенду:**
+
+```
+1. SELECT * FROM two_factor_codes WHERE user_id = (SELECT id FROM users WHERE email=$1)
+2. Перевірити expires_at > NOW()
+3. crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(code))
+4. Якщо невірний → INCREMENT attempts, якщо >= 5 → 429
+5. Якщо вірний:
+   DELETE FROM two_factor_codes WHERE user_id = $1
+   INSERT INTO user_devices (user_id, device_id) ON CONFLICT DO NOTHING
+6. Згенерувати JWT → повернути { token, user }
 ```
 
 ---
@@ -286,32 +411,14 @@ CREATE TABLE order_items (
 
 **Заголовок:** `Authorization: Bearer <token>`
 
-**Що повертає при успіху `200`:**
-
-```json
-{
-  "id": 42,
-  "email": "user@example.com",
-  "name": "Іван Петров",
-  "admin": false,
-  ...решта полів UserInfo...
-}
-```
+**Що повертає при успіху `200`:** повний об'єкт UserInfo (такий самий як у login).
 
 **Помилки:**
 | Код | Коли |
 |-----|------|
 | `401` | Токен невалідний або прострочений |
 
-**Де використовується:** `app/admin/page.tsx` — для перевірки прав адміна на сервері при кожному заході на `/admin`.
-
-**Логіка бекенду:**
-
-```
-1. Розкодувати JWT: jwt.verify(token, JWT_SECRET) → отримати userId
-2. SELECT * FROM users WHERE id = $1
-3. Повернути UserInfo
-```
+> **Де використовується:** `app/admin/page.tsx` — для перевірки прав адміна на сервері при кожному заході на `/admin`. Має бути швидким.
 
 ---
 
@@ -332,21 +439,7 @@ CREATE TABLE order_items (
 
 > ⚠️ **НЕ оновлювати поле `phone` через цей ендпоінт!** Телефон змінюється тільки через `/api/auth/phone/verify-otp` після SMS підтвердження.
 
-**Що повертає при успіху `200`:** повний об'єкт UserInfo (такий самий як у login).
-
-**Помилки:**
-| Код | Коли |
-|-----|------|
-| `401` | Неавторизований |
-
-**Логіка бекенду:**
-
-```
-1. Отримати userId з JWT
-2. Дозволені поля для оновлення: name, address (НЕ phone, НЕ email, НЕ admin)
-3. UPDATE users SET name=$1, address=$2, updated_at=NOW() WHERE id=$3
-4. SELECT * FROM users WHERE id=$3 → повернути UserInfo
-```
+**Що повертає при успіху `200`:** повний об'єкт UserInfo.
 
 ---
 
@@ -365,25 +458,13 @@ CREATE TABLE order_items (
 }
 ```
 
-**Що повертає при успіху:** `204 No Content` (порожня відповідь)
+**Що повертає при успіху:** `204 No Content`
 
 **Помилки:**
 | Код | Коли |
 |-----|------|
 | `400` | `{ "error": "Старий пароль невірний" }` |
 | `401` | Неавторизований |
-
-**Логіка бекенду:**
-
-```
-1. Отримати userId з JWT
-2. SELECT password_hash FROM users WHERE id = $1
-3. bcrypt.compare(oldPassword, password_hash)
-4. Якщо не співпадає → 400
-5. bcrypt.hash(newPassword, 12)
-6. UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2
-7. Повернути 204
-```
 
 ---
 
@@ -413,15 +494,11 @@ CREATE TABLE order_items (
 3. Згенерувати токен: crypto.randomBytes(64).toString('hex')
 4. INSERT INTO password_reset_tokens (user_id, token, expires_at)
    expires_at = NOW() + INTERVAL '1 hour'
-5. Відправити email (SendGrid / Resend / Mailgun):
+5. Відправити email (Resend / SendGrid):
    Тема: "Скидання пароля Come by Shop"
-   Текст: "Перейдіть за посиланням для скидання пароля:
-           https://come-by-shop.com/reset-password?token=<TOKEN>
-           Посилання дійсне 1 годину."
+   Посилання: "https://come-by-shop.com/reset-password?token=<TOKEN>"
 6. Повернути { ok: true }
 ```
-
-**ENV потрібні:** `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS`
 
 ---
 
@@ -449,17 +526,6 @@ CREATE TABLE order_items (
 |-----|------|
 | `400` | `{ "error": "Посилання застаріло або невалідне" }` |
 
-**Логіка бекенду:**
-
-```
-1. SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false
-2. Перевірити expires_at > NOW()
-3. bcrypt.hash(newPassword, 12)
-4. UPDATE users SET password_hash=$1 WHERE id = reset_token.user_id
-5. UPDATE password_reset_tokens SET used = true WHERE id = $1
-6. Повернути { ok: true }
-```
-
 ---
 
 ### 📱 ВЕРИФІКАЦІЯ ТЕЛЕФОНУ
@@ -483,10 +549,10 @@ CREATE TABLE order_items (
 **Що повертає при успіху `200`:**
 
 ```json
-{ "success": true, "expiresIn": 300 }
+{ "success": true, "expiresIn": 120 }
 ```
 
-> `expiresIn` — скільки секунд діє код (фронтенд показує таймер)
+> `expiresIn` — скільки секунд діє код. Фронтенд показує таймер на 120 секунд (2 хвилини).
 
 **Помилки:**
 | Код | Коли |
@@ -499,25 +565,12 @@ CREATE TABLE order_items (
 ```
 1. Перевірити формат: /^\+380\d{9}$/.test(phone)
 2. Rate-limit: максимум 3 запити за 10 хвилин для цього user_id
-   SELECT attempts FROM phone_otps WHERE user_id = $1 → якщо > 3 → 429
-3. Згенерувати 6-значний код: Math.floor(100000 + Math.random() * 900000).toString()
-4. Зберегти або оновити:
-   INSERT INTO phone_otps (user_id, phone, code, expires_at)
-   VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')
-   ON CONFLICT (user_id) DO UPDATE SET
-     phone=EXCLUDED.phone, code=EXCLUDED.code,
-     expires_at=EXCLUDED.expires_at, attempts=0
-5. Відправити SMS через TurboSMS API:
-   POST https://api.turbosms.ua/message/send
-   Headers: { Authorization: "Bearer <TURBOSMS_TOKEN>" }
-   Body: {
-     "recipients": ["+380991234567"],
-     "sms": {
-       "sender": "<TURBOSMS_SENDER>",
-       "text": "Ваш код підтвердження Come by Shop: 123456. Дійсний 5 хвилин."
-     }
-   }
-6. Повернути { success: true, expiresIn: 300 }
+3. Згенерувати 6-значний код
+4. INSERT INTO phone_otps (user_id, phone, code, expires_at)
+   ON CONFLICT (user_id) DO UPDATE SET phone=..., code=..., expires_at=NOW() + INTERVAL '2 minutes', attempts=0
+5. Відправити SMS через TurboSMS:
+   "Ваш код підтвердження Come by Shop: 123456. Дійсний 2 хвилини."
+6. Повернути { success: true, expiresIn: 120 }
 ```
 
 **ENV потрібні:** `TURBOSMS_TOKEN`, `TURBOSMS_SENDER=ComeBySHOP`
@@ -553,10 +606,9 @@ CREATE TABLE order_items (
 1. SELECT * FROM phone_otps WHERE user_id = $1 AND phone = $2
 2. Якщо не знайдено → 400
 3. Якщо blocked_until > NOW() → 429
-4. Перевірити expires_at > NOW() → якщо прострочено → 400
-5. Перевірити код (ОБОВ'ЯЗКОВО через безпечне порівняння):
-   crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(code))
-6. Якщо невірний → INCREMENT attempts, якщо attempts >= 5 → SET blocked_until = NOW() + INTERVAL '30 minutes' → 429
+4. Перевірити expires_at > NOW()
+5. crypto.timingSafeEqual(Buffer.from(otp.code), Buffer.from(code))
+6. Якщо невірний → INCREMENT attempts, якщо >= 5 → SET blocked_until = NOW() + INTERVAL '30 minutes' → 429
 7. Якщо вірний:
    DELETE FROM phone_otps WHERE user_id = $1
    UPDATE users SET phone=$2, phone_verified=true, updated_at=NOW() WHERE id=$1
@@ -601,8 +653,7 @@ CREATE TABLE order_items (
    expires_at = NOW() + INTERVAL '10 minutes'
    ON CONFLICT (user_id) DO UPDATE SET ...
 4. Відправити email на newEmail:
-   Тема: "Підтвердження зміни email — Come by Shop"
-   Текст: "Ваш код для зміни email: 123456. Дійсний 10 хвилин."
+   "Ваш код для зміни email: 123456. Дійсний 10 хвилин."
 5. Повернути { ok: true }
 ```
 
@@ -631,17 +682,6 @@ CREATE TABLE order_items (
 | `400` | `{ "error": "Немає активного запиту зміни email" }` |
 | `400` | `{ "error": "Код застарів" }` |
 | `400` | `{ "error": "Невірний код" }` |
-
-**Логіка бекенду:**
-
-```
-1. SELECT * FROM pending_email_changes WHERE user_id = $1 AND new_email = $2
-2. Перевірити expires_at > NOW()
-3. Перевірити code === otp.code
-4. UPDATE users SET email=$1, updated_at=NOW() WHERE id=$2
-5. DELETE FROM pending_email_changes WHERE user_id = $1
-6. SELECT * FROM users WHERE id=$2 → повернути UserInfo
-```
 
 ---
 
@@ -683,7 +723,7 @@ CREATE TABLE order_items (
     "merchantAccount": "come_by_shop",
     "merchantDomainName": "come-by-shop.com",
     "authorizationCode": "HMAC_MD5_ПІДПИС",
-    "orderReference": "ORDER_20240508_123456",
+    "orderReference": "WFP_42_1715166000000",
     "orderDate": 1715166000,
     "amount": "1",
     "currency": "UAH",
@@ -699,59 +739,21 @@ CREATE TABLE order_items (
 
 > 🔐 `authorizationCode` — це HMAC-MD5 підпис. Формується ТІЛЬКИ на бекенді з `WAYFORPAY_SECRET_KEY`. Ніколи не передавати секретний ключ на фронтенд!
 
-**Логіка бекенду:**
-
-```
-1. Отримати userId з JWT
-2. Згенерувати унікальний orderReference (наприклад: `WFP_${userId}_${Date.now()}`)
-3. Сформувати рядок для підпису:
-   merchantAccount;merchantDomainName;orderReference;orderDate;amount;currency;productName;productCount;productPrice
-4. HMAC-MD5 підпис: crypto.createHmac('md5', WAYFORPAY_SECRET_KEY).update(signString).digest('hex')
-5. Повернути всі поля для JS-форми WayForPay
-```
-
-**ENV потрібні:** `WAYFORPAY_MERCHANT_ACCOUNT`, `WAYFORPAY_SECRET_KEY`, `WAYFORPAY_DOMAIN`
-
 ---
 
 #### `POST /api/payment/wayforpay/callback`
 
 Webhook від WayForPay після успішного платежу. **Не потребує JWT** — захищається HMAC підписом від WayForPay.
 
-**Що отримує бекенд** (від WayForPay, не від фронтенду):
-
-```json
-{
-  "merchantAccount": "come_by_shop",
-  "orderReference": "WFP_42_1715166000000",
-  "transactionStatus": "Approved",
-  "cardPan": "411111****1111",
-  "cardType": "Visa",
-  "recToken": "...",
-  "merchantSignature": "HMAC_MD5_від_WayForPay"
-}
-```
-
-**Що повертає бекенд WayForPay** `200`:
-
-```json
-{
-  "orderReference": "WFP_42_1715166000000",
-  "status": "accept",
-  "time": 1715166000,
-  "signature": "HMAC_MD5_підпис_бекенду"
-}
-```
-
 **Логіка бекенду:**
 
 ```
 1. Перевірити merchantSignature (HMAC-MD5 від WayForPay)
 2. Якщо transactionStatus === 'Approved':
-   Витягти userId з orderReference
+   Витягти userId з orderReference (формат: WFP_<userId>_<timestamp>)
    UPDATE users SET
      card_masked_pan = formatMaskedPan(cardPan),  -- "4111 **** **** 1111"
-     card_type = cardType,                          -- "Visa"
+     card_type = cardType,
      payment = 'card',
      updated_at = NOW()
    WHERE id = userId
@@ -772,7 +774,7 @@ Webhook від WayForPay після успішного платежу. **Не п
 
 ```
 ?category=Напої    — фільтр по категорії
-?hidden=false      — за замовчуванням не повертати приховані (hidden=false)
+?hidden=false      — за замовчуванням не повертати приховані
 ```
 
 **Що повертає `200`:**
@@ -793,16 +795,6 @@ Webhook від WayForPay після успішного платежу. **Не п
 ]
 ```
 
-**Логіка бекенду:**
-
-```sql
-SELECT id, name, description, weight, price, image, image_name as "imageName", category, hidden
-FROM products
-WHERE hidden = false
-  AND ($1::text IS NULL OR category = $1)
-ORDER BY id ASC
-```
-
 > Рекомендовано: кешування відповіді на 60 секунд (Redis або in-memory)
 
 ---
@@ -810,8 +802,6 @@ ORDER BY id ASC
 #### `GET /api/products/:id`
 
 Отримати один товар за ID.
-
-**Що повертає `200`:** один об'єкт Product (такий самий формат як вище).
 
 **Помилки:**
 | Код | Коли |
@@ -830,21 +820,13 @@ ORDER BY id ASC
 ["Напої", "Їжа", "Комбо", "Магазин"]
 ```
 
-**Логіка бекенду:**
-
-```sql
-SELECT DISTINCT category FROM products
-WHERE hidden = false AND category IS NOT NULL
-ORDER BY category ASC
-```
-
 > Кешування на 5 хвилин (рідко змінюється)
 
 ---
 
-#### `POST /api/products` 🔒 👑 (тільки admin)
+#### `POST /api/products` 🔒 👑
 
-Створити новий товар.
+Створити новий товар (тільки admin).
 
 **Заголовок:** `Authorization: Bearer <admin_token>`
 
@@ -857,47 +839,28 @@ ORDER BY category ASC
   "weight": "300 мл",
   "price": 75,
   "category": "Напої",
-  "image": "https://res.cloudinary.com/.../latte.png",
+  "image": "https://res.cloudinary.com/dk9yjgta3/image/upload/q_auto/f_auto/latte.png",
   "imageName": "latte"
 }
 ```
 
+> Зображення завантажується фронтом через `/api/upload` на Cloudinary — бекенд отримує готовий URL.
+
 **Що повертає при успіху `201`:** створений об'єкт Product з полем `id`.
-
-**Помилки:**
-| Код | Коли |
-|-----|------|
-| `401` | Неавторизований або не адмін |
-| `400` | Не передано обов'язкові поля (`name`, `price`) |
-
-**Логіка бекенду:**
-
-```
-1. Перевірити user.admin === true (отримати з JWT)
-2. Валідувати: name і price обов'язкові
-3. INSERT INTO products (...) RETURNING *
-4. Повернути 201 + новий товар
-```
 
 ---
 
-#### `PUT /api/products/:id` 🔒 👑 (тільки admin)
+#### `PUT /api/products/:id` 🔒 👑
 
-Повністю оновити товар.
-
-**Заголовок:** `Authorization: Bearer <admin_token>`
-
-**Що отримує бекенд:** ті ж поля що й при створенні (всі).
+Повністю оновити товар (тільки admin).
 
 **Що повертає при успіху `200`:** оновлений об'єкт Product.
 
 ---
 
-#### `PATCH /api/products/:id` 🔒 👑 (тільки admin)
+#### `PATCH /api/products/:id` 🔒 👑
 
-Частково оновити товар (приховати або показати).
-
-**Заголовок:** `Authorization: Bearer <admin_token>`
+Приховати або показати товар (soft delete).
 
 **Що отримує бекенд:**
 
@@ -905,27 +868,17 @@ ORDER BY category ASC
 { "hidden": true }
 ```
 
-або
-
-```json
-{ "hidden": false }
-```
-
 **Що повертає при успіху `200`:** оновлений об'єкт Product.
-
-> Це "м'яке видалення" — товар не видаляється з БД, лише ховається від покупців. Зберігає цілісність старих замовлень.
 
 ---
 
-#### `DELETE /api/products/:id` 🔒 👑 (тільки admin)
+#### `DELETE /api/products/:id` 🔒 👑
 
 Видалити товар назавжди.
 
-**Заголовок:** `Authorization: Bearer <admin_token>`
-
 **Що повертає при успіху:** `204 No Content`
 
-> ⚠️ Рекомендовано використовувати `PATCH { hidden: true }` замість DELETE — щоб зберегти назви/ціни в старих замовленнях.
+> ⚠️ Рекомендовано використовувати `PATCH { hidden: true }` — щоб зберегти назви/ціни в старих замовленнях.
 
 ---
 
@@ -954,37 +907,10 @@ ORDER BY category ASC
         "productName": "Кава Americano",
         "quantity": 2,
         "price": 65
-      },
-      {
-        "productId": 3,
-        "productName": "Круасан",
-        "quantity": 1,
-        "price": 65
       }
     ]
   }
 ]
-```
-
-**Логіка бекенду:**
-
-```sql
-SELECT
-  o.id,
-  o.created_at as "createdAt",
-  o.status,
-  o.total,
-  json_agg(json_build_object(
-    'productId', oi.product_id,
-    'productName', oi.product_name,
-    'quantity', oi.quantity,
-    'price', oi.price
-  )) as items
-FROM orders o
-JOIN order_items oi ON oi.order_id = o.id
-WHERE o.user_id = $1
-GROUP BY o.id
-ORDER BY o.created_at DESC
 ```
 
 ---
@@ -1006,62 +932,52 @@ ORDER BY o.created_at DESC
 }
 ```
 
-**Що повертає при успіху `201`:** повний об'єкт замовлення (такий самий формат як у GET /api/orders).
+**Що повертає при успіху `201`:** повний об'єкт замовлення.
 
 **Помилки:**
 | Код | Коли |
 |-----|------|
 | `400` | `{ "error": "Замовлення порожнє" }` |
 | `400` | `{ "error": "Товар з id=5 не знайдено" }` |
-| `401` | Неавторизований |
 
-**Логіка бекенду (в транзакції!):**
-
-```
-BEGIN TRANSACTION
-1. Перевірити items.length > 0
-2. Для кожного item: SELECT id, price, name FROM products WHERE id=$1 AND hidden=false
-3. Розрахувати total = sum(product.price * item.quantity)
-4. INSERT INTO orders (user_id, total, status) VALUES ($1, $2, 'В обробці') RETURNING id
-5. INSERT INTO order_items (order_id, product_id, product_name, quantity, price)
-   VALUES ... (декілька рядків)
-COMMIT
-6. Повернути 201 + повний об'єкт замовлення
-```
-
-> ⚠️ Ціни беруться з БД, НЕ від фронтенду — захист від маніпуляцій з цінами!  
-> ⚠️ Використовувати транзакцію — щоб не було часткових замовлень при помилці.
+> ⚠️ Ціни беруться з БД, НЕ від фронтенду — захист від маніпуляцій!  
+> ⚠️ Обов'язково в транзакції (BEGIN/COMMIT) — щоб не було часткових замовлень.
 
 ---
 
 ## 🔑 Зведена таблиця ендпоінтів
 
-| Метод  | Ендпоінт                           | Auth | Admin | Опис                    |
-| ------ | ---------------------------------- | :--: | :---: | ----------------------- |
-| POST   | `/api/auth/register`               |      |       | Реєстрація              |
-| POST   | `/api/auth/login`                  |      |       | Логін                   |
-| POST   | `/api/auth/google`                 |      |       | Google OAuth            |
-| GET    | `/api/auth/me`                     |  🔒  |       | Поточний юзер           |
-| PUT    | `/api/auth/profile`                |  🔒  |       | Оновити профіль         |
-| PUT    | `/api/auth/password`               |  🔒  |       | Змінити пароль          |
-| POST   | `/api/auth/reset-password`         |      |       | Запит скидання пароля   |
-| POST   | `/api/auth/reset-password/confirm` |      |       | Підтвердити скидання    |
-| POST   | `/api/auth/phone/send-otp`         |  🔒  |       | Надіслати SMS код       |
-| POST   | `/api/auth/phone/verify-otp`       |  🔒  |       | Верифікувати телефон    |
-| POST   | `/api/auth/change-email/request`   |  🔒  |       | Запит зміни email       |
-| POST   | `/api/auth/change-email/confirm`   |  🔒  |       | Підтвердити зміну email |
-| PUT    | `/api/auth/payment`                |  🔒  |       | Оновити спосіб оплати   |
-| POST   | `/api/payment/wayforpay/init`      |  🔒  |       | Ініціалізація WayForPay |
-| POST   | `/api/payment/wayforpay/callback`  |  —   |       | Webhook від WayForPay   |
-| GET    | `/api/products`                    |      |       | Список товарів          |
-| GET    | `/api/products/:id`                |      |       | Один товар              |
-| POST   | `/api/products`                    |  🔒  |  👑   | Створити товар          |
-| PUT    | `/api/products/:id`                |  🔒  |  👑   | Оновити товар           |
-| PATCH  | `/api/products/:id`                |  🔒  |  👑   | Приховати/показати      |
-| DELETE | `/api/products/:id`                |  🔒  |  👑   | Видалити товар          |
-| GET    | `/api/categories`                  |      |       | Список категорій        |
-| GET    | `/api/orders`                      |  🔒  |       | Мої замовлення          |
-| POST   | `/api/orders`                      |  🔒  |       | Створити замовлення     |
+| Метод | Ендпоінт                   | Auth | Admin | Опис                  |
+| ----- | -------------------------- | :--: | :---: | --------------------- |
+| POST  | `/api/auth/register`       |      |       | Реєстрація            |
+| POST  | `/api/auth/login`          |      |       | Логін (з 2FA логікою) |
+| POST  | `/api/auth/2fa/send`       |      |       | Надіслати 2FA SMS     |
+| POST  | `/api/auth/2fa/verify`     |      |       | Підтвердити 2FA       |
+| POST  | `/api/auth/google`         |      |       | Google OAuth          |
+| GET   | `/api/auth/me`             |  🔒  |       | Поточний юзер         |
+| PUT   | `/api/auth/profile`        |  🔒  |       | Оновити профіль       |
+| PUT   | `/api/auth/password`       |  🔒  |       | Змінити пароль        |
+| POST  | `/api/auth/reset-password` |      |       | Запит скидання пароля |
+
+POST /api/auth/password-change/request — перевіряє старий пароль, надсилає SMS
+POST /api/auth/password-change/confirm — перевіряє OTP, зберігає новий пароль
+| POST | `/api/auth/reset-password/confirm` | | | Підтвердити скидання |
+| POST | `/api/auth/phone/send-otp` | 🔒 | | Надіслати SMS код |
+| POST | `/api/auth/phone/verify-otp` | 🔒 | | Верифікувати телефон |
+| POST | `/api/auth/change-email/request` | 🔒 | | Запит зміни email |
+| POST | `/api/auth/change-email/confirm` | 🔒 | | Підтвердити зміну email |
+| PUT | `/api/auth/payment` | 🔒 | | Оновити спосіб оплати |
+| POST | `/api/payment/wayforpay/init` | 🔒 | | Ініціалізація WayForPay |
+| POST | `/api/payment/wayforpay/callback` | — | | Webhook від WayForPay |
+| GET | `/api/products` | | | Список товарів |
+| GET | `/api/products/:id` | | | Один товар |
+| POST | `/api/products` | 🔒 | 👑 | Створити товар |
+| PUT | `/api/products/:id` | 🔒 | 👑 | Оновити товар |
+| PATCH | `/api/products/:id` | 🔒 | 👑 | Приховати/показати товар |
+| DELETE | `/api/products/:id` | 🔒 | 👑 | Видалити товар |
+| GET | `/api/categories` | | | Список категорій |
+| GET | `/api/orders` | 🔒 | | Мої замовлення |
+| POST | `/api/orders` | 🔒 | | Створити замовлення |
 
 🔒 — потрібен `Authorization: Bearer <token>`  
 👑 — тільки для користувачів з `admin: true`
@@ -1070,18 +986,26 @@ COMMIT
 
 ## 🌍 Зовнішні сервіси
 
-### TurboSMS (SMS для OTP)
+### TurboSMS (SMS для OTP і 2FA)
 
 ```
 Сайт: https://turbosms.ua
 API:  POST https://api.turbosms.ua/message/send
+Headers: { Authorization: "Bearer <TURBOSMS_TOKEN>" }
+Body: {
+  "recipients": ["+380991234567"],
+  "sms": {
+    "sender": "ComeBySHOP",
+    "text": "Ваш код: 123456"
+  }
+}
 ENV:  TURBOSMS_TOKEN=...
       TURBOSMS_SENDER=ComeBySHOP
 ```
 
-Використовується в: `POST /api/auth/phone/send-otp`
+Використовується в: `POST /api/auth/phone/send-otp`, `POST /api/auth/2fa/send`
 
-### WayForPay (платежі)
+### WayForPay (платежі і збереження картки)
 
 ```
 Сайт: https://wayforpay.com
@@ -1105,8 +1029,9 @@ ENV:  EMAIL_PROVIDER_API_KEY=...
 ### Cloudinary (зображення товарів)
 
 ```
-Фронтенд сам завантажує зображення через Next.js API route /api/upload
-Бекенд отримує вже готовий Cloudinary URL в полі image при POST/PUT /api/products
+Фронтенд завантажує зображення через Next.js API route /api/upload напряму на Cloudinary.
+Бекенд отримує вже готовий URL у полі image при POST/PUT /api/products.
+Cloud name: dk9yjgta3
 ```
 
 ---
@@ -1114,25 +1039,25 @@ ENV:  EMAIL_PROVIDER_API_KEY=...
 ## 🔧 Environment Variables
 
 ```env
-# ─── База даних ──────────────────────────────────────────
+# ─── База даних ───────────────────────────────────────────
 DATABASE_URL=postgresql://user:password@localhost:5432/come_by_shop
 
-# ─── JWT ─────────────────────────────────────────────────
+# ─── JWT ──────────────────────────────────────────────────
 JWT_SECRET=мінімум_32_символи_рандомний_рядок
 
-# ─── CORS ────────────────────────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────
 ALLOWED_ORIGIN=https://come-by-shop.com
 
-# ─── TurboSMS ────────────────────────────────────────────
+# ─── TurboSMS ─────────────────────────────────────────────
 TURBOSMS_TOKEN=
 TURBOSMS_SENDER=ComeBySHOP
 
-# ─── WayForPay ───────────────────────────────────────────
+# ─── WayForPay ────────────────────────────────────────────
 WAYFORPAY_MERCHANT_ACCOUNT=
 WAYFORPAY_SECRET_KEY=
 WAYFORPAY_DOMAIN=come-by-shop.com
 
-# ─── Email ───────────────────────────────────────────────
+# ─── Email ────────────────────────────────────────────────
 EMAIL_PROVIDER_API_KEY=
 EMAIL_FROM_ADDRESS=noreply@come-by-shop.com
 ```
@@ -1144,34 +1069,36 @@ EMAIL_FROM_ADDRESS=noreply@come-by-shop.com
 ```
 Паролі
   ✅ bcrypt з salt rounds = 12 (НЕ MD5, НЕ SHA1, НЕ plain text!)
-  ✅ Мінімальна довжина пароля: 6 символів (перевіряється і на фронті, і на бекенді)
+  ✅ Мінімальна довжина пароля: 6 символів
 
 JWT Токени
   ✅ Підписувати з JWT_SECRET (мінімум 32 символи, рандомний)
-  ✅ TTL: 30 днів (або менше якщо хочеш + refresh tokens)
+  ✅ TTL: 30 днів
 
-OTP коди
+OTP коди (телефон, email, 2FA)
   ✅ Порівнювати через crypto.timingSafeEqual() — захист від timing attacks
   ✅ Один раз використання — видаляти після успішної верифікації
-  ✅ TTL: 5 хвилин для SMS, 10 хвилин для email
+  ✅ TTL: 2 хв для SMS OTP, 10 хв для 2FA, 10 хв для email
 
 Rate Limiting
+  ✅ POST /api/auth/login: 10 спроб / хв на IP
+  ✅ POST /api/auth/2fa/send: 3 запити / 10 хв на user_id
+  ✅ POST /api/auth/2fa/verify: 5 спроб → заблокувати
   ✅ POST /api/auth/phone/send-otp: 3 запити / 10 хв на user_id
   ✅ POST /api/auth/phone/verify-otp: 5 спроб → блок на 30 хв
   ✅ POST /api/auth/reset-password: 3 запити / 15 хв на IP
-  ✅ POST /api/auth/login: 10 спроб / хв на IP (захист від brute force)
 
 CORS
   ✅ Дозволити тільки https://come-by-shop.com (не *)
-  ✅ Credentials: true (для cookie)
+  ✅ Credentials: true
 
 SQL Ін'єкції
   ✅ Завжди parameterized queries ($1, $2, ...) — ніколи string concatenation
 
 Картки
-  ✅ Ніколи не логувати повні номери карток
   ✅ card_masked_pan і card_type — тільки з верифікованого WayForPay callback
   ✅ Перевіряти HMAC підпис від WayForPay перед записом в БД
+  ✅ Ніколи не логувати повні номери карток
 
 Транзакції
   ✅ POST /api/orders — обов'язково в транзакції (BEGIN/COMMIT)
@@ -1183,27 +1110,25 @@ SQL Ін'єкції
 ## ✅ Порядок реалізації (рекомендований)
 
 ```
-Тиждень 1 — Базовий auth і продукти:
   □ POST /api/auth/register
-  □ POST /api/auth/login
+  □ POST /api/auth/login  (без 2FA спочатку)
   □ GET  /api/auth/me
+  □ POST /api/auth/google
   □ GET  /api/products
-  □ POST /api/products (admin)
+  □ GET  /api/categories
+  □ POST /api/products    (admin)
   □ PUT  /api/products/:id (admin)
   □ PATCH /api/products/:id (admin)
   □ DELETE /api/products/:id (admin)
-  □ GET  /api/categories
-
-Тиждень 2 — Профіль і замовлення:
-  □ PUT /api/auth/profile
-  □ PUT /api/auth/password
-  □ GET /api/orders
+  □ PUT  /api/auth/profile
+  □ PUT  /api/auth/password
+  □ GET  /api/orders
   □ POST /api/orders
-  □ POST /api/auth/google
-
-Тиждень 3 — Зовнішні сервіси:
   □ POST /api/auth/phone/send-otp     (TurboSMS)
   □ POST /api/auth/phone/verify-otp
+  □ POST /api/auth/2fa/send           (TurboSMS)
+  □ POST /api/auth/2fa/verify
+  □ Додати deviceId логіку в POST /api/auth/login
   □ POST /api/auth/reset-password     (Email)
   □ POST /api/auth/reset-password/confirm
   □ POST /api/auth/change-email/request  (Email)
@@ -1213,18 +1138,18 @@ SQL Ін'єкції
   □ POST /api/payment/wayforpay/callback
 ```
 
-API контракти які критичні для фронту:
-POST /api/auth/login і POST /api/auth/google — відповідь має бути точно { token: string, user: UserInfo }. Фронт зберігає token в Zustand persist і передає в кожен захищений запит як Authorization: Bearer.
-GET /api/auth/me — цей ендпоінт блокує рендер /admin сторінки. Він має бути швидким (не робити важких запитів). Повертати UserInfo з полем admin: boolean.
-Змінні середовища:
-Додати API_URL (приватна) окремо від NEXT_PUBLIC_API_URL. Фронт буде використовувати приватну для Server Components.
-Нормалізовані помилки:
-Завжди { "error": "текст помилки" } — фронт вже парсить саме цей формат у lib/api.ts. Якщо формат інший — весь error handling зламається.
-Rate limiting:
-Обов'язково на POST /api/auth/login — мінімум 5 спроб / хвилину по IP. Фронт не має захисту від брутфорсу.
-WayForPay:
-authorizationCode (HMAC-MD5 підпис) — формується тільки на бекенді, приватним ключем мерчанта. Фронт лише отримує готовий об'єкт і POST-ить на WayForPay. Це вже закоментовано в types/index.ts.
-CORS:
-Дозволити тільки домен фронту. Не \*.
-httpOnly cookie token:
-Бекенд має встановлювати його при логіні. Фронт читає його в Server Components через cookies() з next/headers — це вже реалізовано в app/admin/page.tsx.
+---
+
+## ⚠️ Критичні контракти для фронтенду
+
+**`POST /api/auth/login`** — відповідь має бути точно `{ token, user }` або `{ requires_2fa: true }`. Фронт зберігає token в Zustand persist і передає в кожен захищений запит.
+
+**`GET /api/auth/me`** — блокує рендер `/admin` сторінки. Має повертати `UserInfo` з полем `admin: boolean`. Має бути швидким.
+
+**Нормалізовані помилки** — завжди `{ "error": "текст" }`. Фронт парсить саме цей формат у `lib/api.ts`. Якщо формат інший — весь error handling зламається.
+
+**`GET /api/products`** — фронт очікує масив навіть якщо він порожній (`[]`), ніколи не `null`.
+
+**`POST /api/orders`** — ціни НЕ приймати від фронтенду. Тільки `productId` і `quantity`.
+
+**CORS** — дозволити тільки домен фронту. Не `*`.

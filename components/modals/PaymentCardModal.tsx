@@ -1,7 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, CreditCard, Lock, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  X,
+  CreditCard,
+  Lock,
+  CheckCircle2,
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
 import { apiInitWayForPay } from "@/lib/api";
 import type { UserInfo, WayForPayInitResult } from "@/types";
 
@@ -38,7 +46,6 @@ function CardPreview({
         minHeight: 140,
       }}
     >
-      {/* Декоративні кола */}
       <div
         style={{
           position: "absolute",
@@ -62,7 +69,6 @@ function CardPreview({
         }}
       />
 
-      {/* Лого платіжної системи */}
       <div
         style={{
           display: "flex",
@@ -138,7 +144,6 @@ function CardPreview({
         )}
       </div>
 
-      {/* Номер картки */}
       <div
         style={{
           fontFamily: "monospace",
@@ -152,7 +157,6 @@ function CardPreview({
         {formatted}
       </div>
 
-      {/* Дата */}
       <div
         style={{
           display: "flex",
@@ -188,23 +192,20 @@ function CardPreview({
   );
 }
 
-// ─── Хук маски номера картки ──────────────────────────────────────────────────
+// ─── Хуки масок ───────────────────────────────────────────────────────────────
 
 function useCardNumberMask() {
   const [raw, setRaw] = useState("");
-
   const formatted = raw
     .replace(/\D/g, "")
     .slice(0, 16)
     .replace(/(.{4})/g, "$1 ")
     .trim();
-
   const cardType: "visa" | "mastercard" | "" = (() => {
     if (raw.startsWith("4")) return "visa";
     if (/^5[1-5]/.test(raw) || /^2[2-7]/.test(raw)) return "mastercard";
     return "";
   })();
-
   return {
     value: formatted,
     raw: raw.replace(/\D/g, ""),
@@ -213,35 +214,27 @@ function useCardNumberMask() {
   };
 }
 
-// ─── Хук маски дати картки ─────────────────────────────────────────────────────
-
 function useExpiryMask() {
   const [value, setValue] = useState("");
-
   function onChange(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 4);
-    if (digits.length >= 3) {
-      setValue(`${digits.slice(0, 2)}/${digits.slice(2)}`);
-    } else {
-      setValue(digits);
-    }
+    setValue(
+      digits.length >= 3 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits,
+    );
   }
-
   function validate(): string | null {
     if (value.length < 5) return "Введіть дату у форматі MM/YY";
     const [mm, yy] = value.split("/").map(Number);
     if (mm < 1 || mm > 12) return "Невірний місяць";
     const now = new Date();
     const expYear = 2000 + yy;
-    const expMonth = mm;
     if (
       expYear < now.getFullYear() ||
-      (expYear === now.getFullYear() && expMonth < now.getMonth() + 1)
+      (expYear === now.getFullYear() && mm < now.getMonth() + 1)
     )
       return "Картка прострочена";
     return null;
   }
-
   return { value, onChange, validate };
 }
 
@@ -253,54 +246,71 @@ interface Props {
   onClose: () => void;
 }
 
-type Step = "loading" | "form" | "wayforpay" | "done";
+type Step = "loading" | "error" | "form" | "wayforpay" | "done";
 
 export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
   const [step, setStep] = useState<Step>("loading");
   const [wpData, setWpData] = useState<WayForPayInitResult | null>(null);
-  const [error, setError] = useState("");
+  const [networkError, setNetworkError] = useState("");
+  const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const initialized = useRef(false); // ← запобігаємо повторному виклику при зміні token
 
-  // Поля мок-форми
   const cardNumber = useCardNumberMask();
   const expiry = useExpiryMask();
   const [cvv, setCvv] = useState("");
   const [cardName, setCardName] = useState("");
 
+  // Ініціалізація WayForPay — виконується ОДИН РАЗ, не залежно від змін token
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     apiInitWayForPay(token)
       .then((data) => {
         setWpData(data);
         setStep(data.mock ? "form" : "wayforpay");
       })
-      .catch(() => {
-        setStep("form"); // fallback до мок-форми
+      .catch((err) => {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Помилка підключення до платіжного сервісу";
+        setNetworkError(msg);
+        setStep("error"); // ← показуємо помилку, а не тихо відкриваємо форму
       });
-  }, [token]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── WayForPay widget ─────────────────────────────────────────────────────
-
+  // WayForPay widget — тільки коли бекенд готовий і скрипт завантажений
   useEffect(() => {
     if (step !== "wayforpay" || !wpData || wpData.mock) return;
-    /*
-     * TODO [BACKEND/FE]: після того як бекенд повертає реальні параметри WayForPay,
-     * тут ініціалізується їхній JS Widget:
-     *
-     * const wayforpay = new window.Wayforpay();
-     * wayforpay.run({
-     *   ...wpData.wayforpay,
-     *   straightWidget: true, // показати прямо на сторінці (не redirect)
-     * });
-     *
-     * Підключити скрипт в app/layout.tsx:
-     * <Script src="https://secure.wayforpay.com/server/pay-widget.js" strategy="lazyOnload" />
-     *
-     * WayForPay сам зашифрує дані картки — ти ніколи не отримуєш CVV/PAN
-     */
+
+    // Захист від SSR та від відсутнього скрипту
+    if (typeof window === "undefined" || !window.Wayforpay) return;
+
+    const wayforpay = new window.Wayforpay();
+    wayforpay.run({
+      ...wpData.wayforpay,
+      straightWidget: true,
+    });
   }, [step, wpData]);
 
-  // NOTE: In production, card data is handled entirely by WayForPay iframe
-  // No direct save function needed
+  function handleRetry() {
+    setStep("loading");
+    setNetworkError("");
+    initialized.current = false;
+
+    apiInitWayForPay(token)
+      .then((data) => {
+        setWpData(data);
+        setStep(data.mock ? "form" : "wayforpay");
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Помилка підключення";
+        setNetworkError(msg);
+        setStep("error");
+      });
+  }
 
   return (
     <div
@@ -335,15 +345,62 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
           </div>
         )}
 
-        {/* ─── Мок-форма картки ─── */}
+        {/* ─── Помилка мережі + Retry ─── */}
+        {step === "error" && (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <div
+              className="modal-icon-wrap"
+              style={{ background: "rgba(229,57,53,0.1)" }}
+            >
+              <AlertCircle size={28} color="var(--red, #e53935)" />
+            </div>
+            <h3 id="payment-modal-title" style={{ margin: "12px 0 6px" }}>
+              Не вдалося підключитись
+            </h3>
+            <p
+              style={{
+                color: "var(--text-3, #888)",
+                fontSize: "0.9rem",
+                margin: "0 0 20px",
+              }}
+            >
+              {networkError}
+            </p>
+            <div className="modal-buttons">
+              <button className="btn btn-secondary" onClick={onClose}>
+                Закрити
+              </button>
+              <button className="btn btn-primary" onClick={handleRetry}>
+                <RefreshCw size={14} style={{ marginRight: 6 }} />
+                Спробувати знову
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Демо-форма картки (mock) ─── */}
         {step === "form" && (
           <>
             <div className="modal-icon-wrap modal-icon-accent">
               <CreditCard size={28} color="var(--accent, #009956)" />
             </div>
-            <h3 id="payment-modal-title" style={{ margin: "0 0 4px" }}>
+            <h3 id="payment-modal-title" style={{ margin: "0 0 2px" }}>
               Додати картку
             </h3>
+            {/* Плашка що це демо — щоб не плутати тестувальників */}
+            <p
+              style={{
+                fontSize: "0.78rem",
+                color: "var(--text-3, #888)",
+                background: "rgba(255,193,7,0.1)",
+                border: "1px solid rgba(255,193,7,0.3)",
+                borderRadius: 6,
+                padding: "4px 10px",
+                marginBottom: 12,
+              }}
+            >
+              🔧 Демо-режим — WayForPay ще не підключено
+            </p>
 
             <CardPreview
               number={cardNumber.raw}
@@ -352,7 +409,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
             />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Номер картки */}
               <div>
                 <label className="modal-label">Номер картки</label>
                 <input
@@ -365,8 +421,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
                   maxLength={19}
                 />
               </div>
-
-              {/* Дата + CVV */}
               <div
                 style={{
                   display: "grid",
@@ -401,8 +455,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
                   />
                 </div>
               </div>
-
-              {/* Ім'я власника */}
               <div>
                 <label className="modal-label">
                   Ім'я власника (як на картці)
@@ -417,7 +469,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
               </div>
             </div>
 
-            {/* Значок безпеки */}
             <div
               style={{
                 display: "flex",
@@ -432,7 +483,7 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
               <span>Дані захищені шифруванням SSL. CVV не зберігається.</span>
             </div>
 
-            {error && (
+            {formError && (
               <p
                 style={{
                   color: "var(--red, #e53935)",
@@ -440,7 +491,7 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
                   margin: "8px 0 0",
                 }}
               >
-                {error}
+                {formError}
               </p>
             )}
 
@@ -458,15 +509,16 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
                 type="button"
                 disabled={true}
                 onMouseDown={(e) => e.preventDefault()}
-                title="Потрібна інтеграція WayForPay"
+                title="Буде доступно після підключення WayForPay бекенду"
+                style={{ opacity: 0.5, cursor: "not-allowed" }}
               >
-                Зберегти картку
+                Демо / Очікує інтеграцію
               </button>
             </div>
           </>
         )}
 
-        {/* ─── WayForPay Widget placeholder ─── */}
+        {/* ─── WayForPay Widget ─── */}
         {step === "wayforpay" && (
           <>
             <div className="modal-icon-wrap modal-icon-accent">
@@ -478,11 +530,6 @@ export default function PaymentCardModal({ token, onSuccess, onClose }: Props) {
             <p className="modal-subtitle">
               Форма оплати WayForPay завантажується…
             </p>
-            {/*
-             * TODO [FE]: Після підключення WayForPay бекенду —
-             * тут з'явиться їхній widget автоматично через useEffect вище.
-             * Нічого більше робити не потрібно.
-             */}
             <div id="wayforpay-widget-container" style={{ minHeight: 200 }} />
           </>
         )}

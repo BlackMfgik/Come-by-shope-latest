@@ -848,7 +848,8 @@ export default function AdminPanel() {
         customCategory: "",
       });
       setEditingId(id);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (typeof window !== "undefined")
+        window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       toast.error("Не вдалося завантажити товар");
     }
