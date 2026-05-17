@@ -42,6 +42,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="uk" data-scroll-behavior="smooth">
+      <head>
+        <link
+          rel="icon"
+          type="image/jpeg"
+          href="https://res.cloudinary.com/dk9yjgta3/image/upload/f_auto/q_auto/a-minimalist-favicon-icon-design-featuri_nNTgwPA2WruO7u9WwSrn_w_1VKEM4CARVSCR7fL4KES2Q_sd_1_whqcyw.jpg"
+        />
+      </head>
       <body suppressHydrationWarning>
         <Providers>{children}</Providers>
         {/* WayForPay widget script — lazyOnload щоб не блокувати рендер */}
