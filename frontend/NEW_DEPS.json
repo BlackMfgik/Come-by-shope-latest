@@ -1,0 +1,15 @@
+{
+  "note": "Додай ці залежності до свого package.json (вже встановлено через npm install)",
+  "new_dependencies": {
+    "@fingerprintjs/fingerprintjs": "^4.x",
+    "react-countdown": "^2.x"
+  },
+  "already_required": {
+    "react-hook-form": "^7.x",
+    "@hookform/resolvers": "^3.x",
+    "zod": "^3.x",
+    "zustand": "^5.x",
+    "sonner": "^2.x"
+  },
+  "install_command": "npm install @fingerprintjs/fingerprintjs react-countdown"
+}

@@ -1,0 +1,34 @@
+// src/env.ts
+import { createEnv } from "@t3-oss/env-core";
+import { z } from "zod";
+
+export const env = createEnv({
+  server: {
+    DATABASE_URL: z.string().url(),
+    JWT_SECRET: z.string().min(32),
+    ALLOWED_ORIGIN: z.string().url(),
+
+    TURBOSMS_TOKEN: z.string().min(1),
+    TURBOSMS_SENDER: z.string().min(1),
+
+    WAYFORPAY_MERCHANT_ACCOUNT: z.string().min(1),
+    WAYFORPAY_SECRET_KEY: z.string().min(1),
+    WAYFORPAY_DOMAIN: z.string().min(1),
+
+    EMAIL_PROVIDER_API_KEY: z.string().min(1),
+    EMAIL_FROM_ADDRESS: z.string().email(),
+
+    GOOGLE_CLIENT_ID: z.string().min(1),
+
+    // Тільки для розробки: фіксований OTP-код, SMS не надсилається
+    // Приклад: DEV_OTP=000000
+    DEV_OTP: z.string().length(6).optional(),
+
+    PORT: z
+      .string()
+      .default("4000")
+      .transform((v) => parseInt(v, 10)),
+  },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
+});

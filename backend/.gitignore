@@ -1,8 +1,5 @@
 node_modules/
-.next/
 dist/
 drizzle/
 .env
-.env.local
 *.js.map
-.DS_Store
