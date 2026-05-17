@@ -29,6 +29,7 @@ const OTP_TTL = 120;
 
 interface Props {
   email: string;
+  userId: number;
   deviceId: string | null;
   onSuccess: (token: string) => void;
   onClose: () => void;
@@ -84,6 +85,7 @@ function ResendTimer({
 
 export default function TwoFactorModal({
   email,
+  userId,
   deviceId,
   onSuccess,
   onClose,
@@ -116,11 +118,21 @@ export default function TwoFactorModal({
 
   async function handleResend() {
     try {
-      // TODO: API POST /api/auth/2fa/send
-      // Body: { email, deviceId }
-      // Response: { ok: true }
-
-      await new Promise((r) => setTimeout(r, 600));
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/auth/2fa/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, deviceId: deviceId ?? "unknown" }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError("code", {
+          message: body?.error ?? "Помилка відправки коду. Спробуйте ще раз.",
+        });
+        return;
+      }
       setTwoFactorOtpSent(email, OTP_TTL);
       setValue("code", "");
     } catch {
@@ -132,20 +144,34 @@ export default function TwoFactorModal({
 
   async function handleVerify(data: OtpFormData) {
     try {
-      // TODO: API POST /api/auth/2fa/verify
-      // Body: { email, code: data.code, deviceId }
-      // Response: { token: string } — JWT токен після успішної 2FA
-      // Errors:
-      //   400 { error: "Невірний код" }
-      //   410 { error: "Код протермінувався" }
-      //   429 { error: "Занадто багато спроб" }
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/auth/2fa/verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            deviceId: deviceId ?? "unknown",
+            code: data.code,
+          }),
+        },
+      );
 
-      await new Promise((r) => setTimeout(r, 600));
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg =
+          body?.error ??
+          (res.status === 429
+            ? "Занадто багато спроб"
+            : "Невірний або прострочений код");
+        setError("code", { message: msg });
+        setValue("code", "");
+        return;
+      }
 
+      const result = await res.json();
       clearTwoFactor();
-
-      // Бекенд повертає новий токен після успішної 2FA
-      onSuccess("jwt_token_from_backend");
+      onSuccess(result.token);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Невірний код";
       setError("code", { message: msg });

@@ -40,6 +40,7 @@ export default function LoginPage() {
   // Task 2: 2FA modal state
   const [showTwoFactor, setShowTwoFactor] = useState(false);
   const [twoFactorEmail, setTwoFactorEmail] = useState("");
+  const [twoFactorUserId, setTwoFactorUserId] = useState<number>(0);
 
   // Task 4: відновити 2FA якщо юзер закривав модалку
   const { twoFactor, setTwoFactorOtpSent } = useVerificationStore();
@@ -114,6 +115,7 @@ export default function LoginPage() {
           password: data.password,
         };
         setTwoFactorEmail(data.email);
+        setTwoFactorUserId(preData.userId);
         setTwoFactorOtpSent(data.email);
         setShowTwoFactor(true);
         return;
@@ -298,6 +300,7 @@ export default function LoginPage() {
       {showTwoFactor && (
         <TwoFactorModal
           email={twoFactorEmail || (getValues("email") ?? "")}
+          userId={twoFactorUserId}
           deviceId={deviceId}
           onSuccess={handleTwoFactorSuccess}
           onClose={() => setShowTwoFactor(false)}
