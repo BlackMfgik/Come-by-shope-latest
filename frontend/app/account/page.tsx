@@ -203,7 +203,7 @@ function OrderHistory({ token }: { token: string }) {
                   {order.status}
                 </span>
                 <span className="order-total-preview">
-                  {order.total.toFixed(2)} ₴
+                  {Number(order.total).toFixed(2)} ₴
                 </span>
                 <span className={`order-chevron${isOpen ? " rotated" : ""}`}>
                   <ChevronDown size={18} />
@@ -219,14 +219,14 @@ function OrderHistory({ token }: { token: string }) {
                         {item.productName} × {item.quantity}
                       </span>
                       <span className="order-item-price">
-                        {(item.price * item.quantity).toFixed(2)} ₴
+                        {(Number(item.price) * item.quantity).toFixed(2)} ₴
                       </span>
                     </div>
                   ))}
                 </div>
                 <div className="order-summary-row">
                   <span>Разом:</span>
-                  <span>{order.total.toFixed(2)} ₴</span>
+                  <span>{Number(order.total).toFixed(2)} ₴</span>
                 </div>
                 <div style={{ marginTop: 6 }}>
                   <span

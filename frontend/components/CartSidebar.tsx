@@ -107,7 +107,7 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
                 <div className="cart-item-info">
                   <strong>{item.name}</strong>
                   <span className="cart-item-price">
-                    {item.price.toFixed(2)} ₴
+                    {Number(item.price).toFixed(2)} ₴
                   </span>
 
                   <div className="cart-controls">
@@ -137,7 +137,7 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
           <div className="cart-total">
             <div className="cart-summary">
               <strong>Загальна сума:</strong>
-              <span>{total.toFixed(2)} ₴</span>
+              <span>{Number(total).toFixed(2)} ₴</span>
             </div>
           </div>
         )}

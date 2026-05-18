@@ -328,7 +328,7 @@ function OrderCard({
               color: "var(--color-text-primary)",
             }}
           >
-            {order.total.toFixed(2)} ₴
+            {Number(order.total).toFixed(2)} ₴
           </span>
           <StatusBadge status={order.status} />
           {open ? (
@@ -451,7 +451,7 @@ function OrderCard({
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  {(item.price * item.quantity).toFixed(2)} ₴
+                  {(Number(item.price) * item.quantity).toFixed(2)} ₴
                 </span>
               </div>
             ))}
@@ -468,7 +468,7 @@ function OrderCard({
               }}
             >
               <span>Разом</span>
-              <span>{order.total.toFixed(2)} ₴</span>
+              <span>{Number(order.total).toFixed(2)} ₴</span>
             </div>
           </div>
 

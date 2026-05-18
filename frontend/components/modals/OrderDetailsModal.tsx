@@ -82,7 +82,7 @@ export default function OrderDetailsModal({ order, onClose }: Props) {
                 <p className="order-detail-qty">× {item.quantity}</p>
               </div>
               <span className="order-detail-price">
-                {(item.price * item.quantity).toFixed(2)} ₴
+                {(Number(item.price) * item.quantity).toFixed(2)} ₴
               </span>
             </div>
           ))}
@@ -91,7 +91,9 @@ export default function OrderDetailsModal({ order, onClose }: Props) {
         <div className="order-modal-card" style={{ marginTop: 12 }}>
           <div className="order-modal-row order-modal-row-total">
             <span className="label">Загальна сума</span>
-            <span className="value price">{order.total.toFixed(2)} ₴</span>
+            <span className="value price">
+              {Number(order.total).toFixed(2)} ₴
+            </span>
           </div>
         </div>
 
