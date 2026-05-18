@@ -32,7 +32,6 @@ export async function sendTwoFactorEmail(
   toEmail: string,
   code: string,
 ): Promise<void> {
-  // DEV режим: не надсилаємо реальний email, просто логуємо
   if (env.DEV_OTP) {
     console.log(`[DEV EMAIL 2FA] → ${toEmail}: код ${code}`);
     return;
@@ -68,6 +67,30 @@ export async function sendEmailChangeCode(
       <h1 style="font-size:40px;letter-spacing:8px;font-family:monospace;">${code}</h1>
       <p>Код дійсний протягом 10 хвилин.</p>
       <p>Якщо ви не робили цього запиту — проігноруйте цей лист.</p>
+    `,
+  });
+}
+
+export async function sendEmailVerificationEmail(
+  toEmail: string,
+  code: string,
+  name: string,
+): Promise<void> {
+  if (env.DEV_OTP) {
+    console.log(`[DEV EMAIL VERIFY] → ${toEmail}: код ${code}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: env.EMAIL_FROM_ADDRESS,
+    to: toEmail,
+    subject: "Підтвердження реєстрації — Come by Shop",
+    html: `
+      <h2>Вітаємо, ${name}!</h2>
+      <p>Для завершення реєстрації введіть цей код підтвердження:</p>
+      <h1 style="font-size:48px;letter-spacing:12px;font-family:monospace;color:#009956;">${code}</h1>
+      <p>Код дійсний протягом 10 хвилин.</p>
+      <p>Якщо ви не реєструвались на Come by Shop — проігноруйте цей лист.</p>
     `,
   });
 }

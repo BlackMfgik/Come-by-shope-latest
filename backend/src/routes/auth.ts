@@ -19,6 +19,7 @@ import {
   sendPasswordResetEmail,
   sendEmailChangeCode,
   sendTwoFactorEmail,
+  sendEmailVerificationEmail,
 } from "../services/email.js";
 import { env } from "../env.js";
 
@@ -36,6 +37,13 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(1).max(255),
+  deviceId: z.string().min(1).optional(),
+});
+
+const verifyEmailSchema = z.object({
+  userId: z.number().int().positive(),
+  code: z.string().length(6),
+  deviceId: z.string().min(1),
 });
 
 const loginSchema = z.object({
@@ -139,7 +147,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       if (!result.success) {
         return reply.code(400).send({ error: "Невірні дані реєстрації" });
       }
-      const { email, password, name } = result.data;
+      const { email, password, name, deviceId } = result.data;
 
       const existing = await db
         .select({ id: users.id })
@@ -166,13 +174,165 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(500).send({ error: "Помилка створення користувача" });
       }
 
+      // Генеруємо OTP для підтвердження email
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 хвилин
+      const pendingDeviceId = deviceId ?? "email-verify";
+
+      await db
+        .insert(twoFactorCodes)
+        .values({ userId: user.id, deviceId: pendingDeviceId, code, expiresAt })
+        .onConflictDoUpdate({
+          target: twoFactorCodes.userId,
+          set: { deviceId: pendingDeviceId, code, expiresAt, attempts: 0 },
+        });
+
+      if (env.DEV_OTP) {
+        console.log(
+          `[DEV EMAIL VERIFY] → ${user.email}: код ${env.DEV_OTP ?? code}`,
+        );
+      } else {
+        await sendEmailVerificationEmail(user.email, code, user.name);
+      }
+
+      return reply
+        .code(201)
+        .send({ requires_verification: true, userId: user.id });
+    },
+  );
+
+  // ── POST /api/auth/register/verify ────────────────────────────────────────
+  fastify.post(
+    "/register/verify",
+    {
+      config: {
+        rateLimit: { max: 10, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
+      const result = verifyEmailSchema.safeParse(request.body);
+      if (!result.success) {
+        return reply.code(400).send({ error: "Невірні дані" });
+      }
+      const { userId, code, deviceId } = result.data;
+
+      const [row] = await db
+        .select()
+        .from(twoFactorCodes)
+        .where(eq(twoFactorCodes.userId, userId))
+        .limit(1);
+
+      if (!row) {
+        return reply
+          .code(400)
+          .send({ error: "Код не знайдено або вже використано" });
+      }
+
+      if (row.attempts >= 5) {
+        return reply
+          .code(429)
+          .send({ error: "Занадто багато спроб. Зареєструйтесь знову." });
+      }
+
+      if (new Date() > row.expiresAt) {
+        await db
+          .delete(twoFactorCodes)
+          .where(eq(twoFactorCodes.userId, userId));
+        return reply
+          .code(410)
+          .send({ error: "Код прострочений. Зареєструйтесь знову." });
+      }
+
+      const validCode = env.DEV_OTP ?? row.code;
+      if (code !== validCode) {
+        await db
+          .update(twoFactorCodes)
+          .set({ attempts: row.attempts + 1 })
+          .where(eq(twoFactorCodes.userId, userId));
+        return reply.code(400).send({ error: "Невірний код" });
+      }
+
+      // Видаляємо OTP і реєструємо пристрій
+      await db.delete(twoFactorCodes).where(eq(twoFactorCodes.userId, userId));
+
+      await db
+        .insert(userDevices)
+        .values({ userId, deviceId })
+        .onConflictDoNothing();
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return reply.code(500).send({ error: "Користувача не знайдено" });
+      }
+
       const token = signToken(fastify, {
         id: user.id,
         email: user.email,
         admin: user.admin,
       });
 
-      return reply.code(201).send({ token, user: safeUser(user) });
+      return reply.code(200).send({ token, user: safeUser(user) });
+    },
+  );
+
+  // ── POST /api/auth/register/resend ────────────────────────────────────────
+  fastify.post(
+    "/register/resend",
+    {
+      config: {
+        rateLimit: { max: 5, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.body as { userId?: number };
+      if (!userId || typeof userId !== "number") {
+        return reply.code(400).send({ error: "Невірні дані" });
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return reply.code(404).send({ error: "Користувача не знайдено" });
+      }
+
+      const [existing] = await db
+        .select()
+        .from(twoFactorCodes)
+        .where(eq(twoFactorCodes.userId, userId))
+        .limit(1);
+
+      if (!existing) {
+        return reply.code(410).send({
+          error: "Сесія реєстрації закінчилась. Зареєструйтесь знову.",
+        });
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db
+        .update(twoFactorCodes)
+        .set({ code, expiresAt, attempts: 0 })
+        .where(eq(twoFactorCodes.userId, userId));
+
+      if (env.DEV_OTP) {
+        console.log(
+          `[DEV EMAIL VERIFY RESEND] → ${user.email}: код ${env.DEV_OTP ?? code}`,
+        );
+      } else {
+        await sendEmailVerificationEmail(user.email, code, user.name);
+      }
+
+      return reply.code(200).send({ ok: true });
     },
   );
 

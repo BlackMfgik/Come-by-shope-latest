@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff, MailCheck } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
-import { apiRegister } from "@/lib/api";
+import { useFingerprint } from "@/hooks/useFingerprint";
+import { apiRegister, apiVerifyRegistration } from "@/lib/api";
 
 // ── Індикатор сили пароля ───────────────────────────────────────────────────
 
@@ -47,10 +48,251 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
+// ── Модалка підтвердження email ─────────────────────────────────────────────
+
+interface VerifyModalProps {
+  email: string;
+  userId: number;
+  deviceId: string;
+  password: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function EmailVerifyModal({
+  email,
+  userId,
+  deviceId,
+  password,
+  onClose,
+  onSuccess,
+}: VerifyModalProps) {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const code = digits.join("");
+
+  function startCooldown() {
+    setCooldown(60);
+    timerRef.current = setInterval(() => {
+      setCooldown((v) => {
+        if (v <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return v - 1;
+      });
+    }, 1000);
+  }
+
+  function handleDigitChange(index: number, value: string) {
+    const digit = value.replace(/\D/, "").slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    if (digit && index < 5) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  }
+
+  function handleKeyDown(
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    if (!pasted) return;
+    const next = Array(6).fill("");
+    pasted.split("").forEach((ch, i) => {
+      next[i] = ch;
+    });
+    setDigits(next);
+    inputsRef.current[Math.min(pasted.length, 5)]?.focus();
+  }
+
+  async function handleVerify() {
+    if (code.length !== 6) {
+      setError("Введіть 6-значний код");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      await apiVerifyRegistration(userId, code, deviceId);
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+      if (result?.error) {
+        // Верифікація пройшла, але signIn не вдався — відправляємо на логін
+        onSuccess();
+        return;
+      }
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Невірний код");
+      setDigits(Array(6).fill(""));
+      inputsRef.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResendLoading(true);
+    setError("");
+    try {
+      const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+      const res = await fetch(`${BASE}/api/auth/register/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.error ?? "Помилка надсилання. Спробуйте ще раз.");
+        return;
+      }
+      startCooldown();
+      setDigits(Array(6).fill(""));
+      inputsRef.current[0]?.focus();
+    } catch {
+      setError("Помилка мережі. Спробуйте ще раз.");
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+          <MailCheck size={44} color="var(--accent)" />
+        </div>
+
+        <h2 className="modal-title" style={{ textAlign: "center" }}>
+          Підтвердіть email
+        </h2>
+
+        <p
+          style={{
+            textAlign: "center",
+            color: "var(--text-secondary)",
+            fontSize: "0.9rem",
+            marginBottom: "1.5rem",
+          }}
+        >
+          Ми надіслали код на{" "}
+          <strong style={{ color: "var(--text)" }}>{email}</strong>
+        </p>
+
+        {/* OTP поля */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            justifyContent: "center",
+            marginBottom: "1rem",
+          }}
+          onPaste={handlePaste}
+        >
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={(el) => {
+                inputsRef.current[i] = el;
+              }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={d}
+              onChange={(e) => handleDigitChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              style={{
+                width: 44,
+                height: 52,
+                textAlign: "center",
+                fontSize: "1.25rem",
+                fontWeight: 600,
+                border: "1.5px solid var(--border)",
+                borderRadius: 8,
+                background: "var(--bg-secondary)",
+                color: "var(--text)",
+                outline: "none",
+              }}
+            />
+          ))}
+        </div>
+
+        {error && (
+          <p
+            style={{
+              color: "#e74c3c",
+              textAlign: "center",
+              marginBottom: "0.75rem",
+              fontSize: "0.875rem",
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        <button
+          className="register-button"
+          style={{ width: "100%", marginBottom: "0.75rem" }}
+          onClick={handleVerify}
+          disabled={loading || code.length !== 6}
+        >
+          {loading ? "Перевірка..." : "Підтвердити"}
+        </button>
+
+        <button
+          type="button"
+          style={{
+            width: "100%",
+            padding: "0.65rem",
+            background: "transparent",
+            border: "1.5px solid var(--border)",
+            borderRadius: 8,
+            color: "var(--text-secondary)",
+            fontSize: "0.875rem",
+            cursor: cooldown > 0 || resendLoading ? "not-allowed" : "pointer",
+            opacity: cooldown > 0 || resendLoading ? 0.6 : 1,
+          }}
+          onClick={handleResend}
+          disabled={resendLoading || cooldown > 0}
+        >
+          {cooldown > 0
+            ? `Надіслати знову (${cooldown}с)`
+            : resendLoading
+              ? "Надсилання..."
+              : "Надіслати код знову"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Сторінка реєстрації ─────────────────────────────────────────────────────
 
 export default function RegistrationPage() {
   const router = useRouter();
+  const { deviceId } = useFingerprint();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -61,6 +303,13 @@ export default function RegistrationPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Стан після реєстрації — показуємо модалку
+  const [verifyState, setVerifyState] = useState<{
+    userId: number;
+    email: string;
+    password: string;
+  } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,33 +323,16 @@ export default function RegistrationPage() {
 
     setLoading(true);
     try {
-      // Крок 1: реєстрація через наш API
-      try {
-        await apiRegister(email.trim(), password, name.trim());
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Помилка реєстрації");
-        return;
-      }
-
-      // Крок 2: автоматичний вхід через NextAuth Credentials
-      const result = await signIn("credentials", {
-        email: email.trim(),
+      const data = await apiRegister(
+        email.trim(),
         password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError(
-          "Реєстрація успішна, але не вдалося увійти. Спробуйте вручну.",
-        );
-        router.push("/login");
-        return;
-      }
-
-      router.push("/account");
-      router.refresh();
-    } catch {
-      setError("Помилка реєстрації. Спробуйте ще раз.");
+        name.trim(),
+        deviceId ?? "unknown",
+      );
+      // Показуємо модалку підтвердження
+      setVerifyState({ userId: data.userId, email: email.trim(), password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Помилка реєстрації");
     } finally {
       setLoading(false);
     }
@@ -241,6 +473,20 @@ export default function RegistrationPage() {
         </div>
       </main>
       <Footer />
+
+      {verifyState && (
+        <EmailVerifyModal
+          email={verifyState.email}
+          userId={verifyState.userId}
+          deviceId={deviceId ?? "unknown"}
+          password={verifyState.password}
+          onClose={() => setVerifyState(null)}
+          onSuccess={() => {
+            router.push("/account");
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

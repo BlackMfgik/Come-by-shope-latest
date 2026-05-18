@@ -64,20 +64,39 @@ export async function apiLogin(
 
 /**
  * 🔌 ENDPOINT: POST /api/auth/register
- * Request:  { email: string, password: string, name?: string }
- * Response: { success: true }  — фронтенд одразу викличе signIn()
- * Errors:   409 → "Email вже існує", 400 → "Пароль < 6 символів"
- * ⚠️ Після успіху бекенд НЕ повертає токен — тільки { success: true }
+ * Request:  { email, password, name, deviceId? }
+ * Response: { requires_verification: true, userId: number }
+ * Errors:   409 → "Email вже існує", 400 → "Невірні дані"
  */
 export async function apiRegister(
   email: string,
   password: string,
   name: string,
-): Promise<AuthPayload> {
+  deviceId?: string,
+): Promise<{ requires_verification: true; userId: number }> {
   const res = await fetch(`${BASE}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email, password, name, deviceId }),
+  });
+  return handleResponse<{ requires_verification: true; userId: number }>(res);
+}
+
+/**
+ * 🔌 ENDPOINT: POST /api/auth/register/verify
+ * Request:  { userId: number, code: string, deviceId: string }
+ * Response: { token: string, user: UserInfo }
+ * Errors:   400 → "Невірний код", 410 → "Код прострочений", 429 → rate-limit
+ */
+export async function apiVerifyRegistration(
+  userId: number,
+  code: string,
+  deviceId: string,
+): Promise<AuthPayload> {
+  const res = await fetch(`${BASE}/api/auth/register/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, code, deviceId }),
   });
   return handleResponse<AuthPayload>(res);
 }
