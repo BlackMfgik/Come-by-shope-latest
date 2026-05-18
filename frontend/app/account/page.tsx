@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
@@ -298,6 +298,14 @@ function AccountItem({
 // ─── AccountPage ──────────────────────────────────────────────────────────────
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountPageContent />
+    </Suspense>
+  );
+}
+
+function AccountPageContent() {
   const { user, token, saveAuth, logout, _hasHydrated } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
