@@ -390,6 +390,15 @@ function AccountPageContent() {
       else if (action === "email") setChangeEmailOpen(true);
       return;
     }
+    // Якщо поле ще не заповнене — нема чого захищати, відкриваємо одразу
+    if (action === "phone" && !displayPhone) {
+      setPhoneModalOpen(true);
+      return;
+    }
+    if (action === "payment" && !displayCardMasked) {
+      setPaymentModalOpen(true);
+      return;
+    }
     setConfirmPwAction(action);
     setConfirmPwOpen(true);
   }

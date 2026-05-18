@@ -12,7 +12,7 @@
  * - React Hook Form + Zod: валідація полів (Завдання 1)
  * - MaskedPhone: замаскований показ поточного номера (Завдання 1)
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Countdown, { type CountdownRenderProps } from "react-countdown";
@@ -39,28 +39,31 @@ import type { UserInfo } from "@/types";
 const OTP_TTL = 120; // секунд до протермінування OTP
 const RESEND_COOLDOWN = 60; // секунд між повторними відправками
 
-// ── Хелпер маски ─────────────────────────────────────────────────────────────
+// ── Хелпери форматування телефону ───────────────────────────────────────────
 
-function usePhoneMask(initial = "") {
-  const raw = initial.replace(/\D/g, "").slice(0, 12);
-  const formatted = (() => {
-    if (!raw.startsWith("380") || raw.length < 3) return initial;
-    const local = raw.slice(3);
-    let r = "+380";
-    if (local.length > 0) r += ` (${local.slice(0, 2)}`;
-    if (local.length >= 2) r += ")";
-    if (local.length > 2) r += ` ${local.slice(2, 5)}`;
-    if (local.length > 5) r += `-${local.slice(5, 7)}`;
-    if (local.length > 7) r += `-${local.slice(7, 9)}`;
-    return r;
-  })();
+/** Витягує локальні 9 цифр (після +380) з будь-якого рядка */
+function extractLocal(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  const local = d.startsWith("380") ? d.slice(3) : d;
+  return local.slice(0, 9);
+}
 
-  function toE164(value: string): string | null {
-    const d = value.replace(/\D/g, "");
-    return d.startsWith("380") && d.length === 12 ? `+${d}` : null;
-  }
-
-  return { formatted, toE164 };
+/** Форматує 9 локальних цифр у +380(XX)XXX-XX-XX */
+function formatLocal(digits: string): string {
+  const d = digits.slice(0, 9);
+  let r = "+380(";
+  if (d.length === 0) return r;
+  r += d.slice(0, 2);
+  if (d.length <= 2) return r;
+  r += ")";
+  r += d.slice(2, 5);
+  if (d.length <= 5) return r;
+  r += "-";
+  r += d.slice(5, 7);
+  if (d.length <= 7) return r;
+  r += "-";
+  r += d.slice(7, 9);
+  return r;
 }
 
 // ── Таймер (react-countdown renderer) ─────────────────────────────────────────
@@ -144,9 +147,13 @@ export default function PhoneVerifyModal({
     ? (saved.pendingPhone ?? "")
     : (currentPhone ?? "");
 
-  // ── RHF: форма номера ─────────────────────────────────────────────────────
+  // ── Локальний стан телефонного інпуту ────────────────────────────────────
 
-  const phoneMask = usePhoneMask(initialPhone);
+  const [localDigits, setLocalDigits] = useState(() =>
+    extractLocal(initialPhone),
+  );
+
+  // ── RHF: форма номера ─────────────────────────────────────────────────────
 
   const phoneForm = useForm<PhoneFormData>({
     resolver: zodResolver(phoneSchema),
@@ -286,21 +293,21 @@ export default function PhoneVerifyModal({
               className="modal-input"
               type="tel"
               inputMode="numeric"
-              placeholder="+380 (XX) XXX-XX-XX"
               autoFocus
               aria-invalid={!!phoneForm.formState.errors.phone}
-              {...phoneForm.register("phone")}
+              value={formatLocal(localDigits)}
               onChange={(e) => {
-                // Оновлюємо RHF значення разом з маскою
-                const digits = e.target.value.replace(/\D/g, "");
-                let norm = digits;
-                if (digits.startsWith("0")) norm = "38" + digits;
-                else if (digits.startsWith("80")) norm = "3" + digits;
-                phoneForm.setValue("phone", norm.slice(0, 12), {
+                // Витягуємо тільки цифри з того, що ввів юзер
+                const allDigits = e.target.value.replace(/\D/g, "");
+                // Відкидаємо префікс 380 який вже є у відображенні
+                const local = allDigits.startsWith("380")
+                  ? allDigits.slice(3).slice(0, 9)
+                  : allDigits.slice(0, 9);
+                setLocalDigits(local);
+                phoneForm.setValue("phone", "380" + local, {
                   shouldValidate: false,
                 });
               }}
-              value={phoneMask.formatted}
             />
           </div>
 
