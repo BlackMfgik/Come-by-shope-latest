@@ -124,7 +124,11 @@ interface JwtPayload {
 
 function safeUser(user: typeof users.$inferSelect) {
   const { passwordHash: _pw, ...rest } = user;
-  return rest;
+  return {
+    ...rest,
+    /** true якщо у юзера встановлений пароль (не OAuth-only акаунт) */
+    has_password: user.passwordHash !== null,
+  };
 }
 
 function signToken(fastify: FastifyInstance, payload: JwtPayload): string {
@@ -1054,6 +1058,46 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         .where(eq(users.id, payload.id));
 
       await db.delete(phoneOtps).where(eq(phoneOtps.userId, payload.id));
+
+      return reply.send({ ok: true });
+    },
+  );
+
+  // ── POST /api/auth/verify-password ────────────────────────────────────────
+  fastify.post(
+    "/verify-password",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const payload = request.user as JwtPayload;
+
+      const bodySchema = z.object({ password: z.string().min(1) });
+      const result = bodySchema.safeParse(request.body);
+      if (!result.success) {
+        return reply.code(400).send({ error: "Введіть пароль" });
+      }
+
+      const [user] = await db
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, payload.id))
+        .limit(1);
+
+      if (!user) {
+        return reply.code(404).send({ error: "Користувача не знайдено" });
+      }
+
+      // OAuth-юзер без пароля — підтвердження не потрібне
+      if (!user.passwordHash) {
+        return reply.send({ ok: true });
+      }
+
+      const match = await bcrypt.compare(
+        result.data.password,
+        user.passwordHash,
+      );
+      if (!match) {
+        return reply.code(400).send({ error: "Невірний пароль" });
+      }
 
       return reply.send({ ok: true });
     },

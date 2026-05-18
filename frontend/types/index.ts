@@ -12,6 +12,8 @@ export interface UserInfo {
   card_masked_pan?: string;
   /** "Visa" | "MasterCard" | "Maestro" (заповнюється бекендом після WayForPay callback) */
   card_type?: string;
+  /** true якщо у юзера встановлений пароль (false = OAuth-only акаунт) */
+  has_password?: boolean;
   admin: boolean;
 }
 

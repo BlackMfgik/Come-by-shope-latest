@@ -383,6 +383,13 @@ function AccountPageContent() {
 
   /** Відкрити ConfirmPasswordModal перед чутливою дією */
   function openWithPasswordConfirm(action: ConfirmAction) {
+    // OAuth-юзер без пароля — одразу відкриваємо потрібну модалку
+    if (!user?.has_password) {
+      if (action === "payment") setPaymentModalOpen(true);
+      else if (action === "phone") setPhoneModalOpen(true);
+      else if (action === "email") setChangeEmailOpen(true);
+      return;
+    }
     setConfirmPwAction(action);
     setConfirmPwOpen(true);
   }
