@@ -2,6 +2,8 @@
 
 interface Props {
   address: string;
+  cardMaskedPan: string;
+  cardType?: string;
   total: number;
   onCancel: () => void;
   onConfirm: () => void;
@@ -9,6 +11,8 @@ interface Props {
 
 export default function OrderModal({
   address,
+  cardMaskedPan,
+  cardType,
   total,
   onCancel,
   onConfirm,
@@ -24,8 +28,9 @@ export default function OrderModal({
       <div className="order-modal">
         <div className="order-modal-header">
           <h2>Підтвердження замовлення</h2>
-          <p>Перевір адресу та суму перед оформленням.</p>
+          <p>Перевір дані перед оформленням.</p>
         </div>
+
         <div className="order-modal-card">
           <div className="order-modal-row">
             <span className="label">Адреса доставки</span>
@@ -33,6 +38,15 @@ export default function OrderModal({
               {address}
             </span>
           </div>
+
+          <div className="order-modal-row">
+            <span className="label">Спосіб оплати</span>
+            <span className="value" id="order-card">
+              {cardType ? `${cardType} ` : ""}
+              {cardMaskedPan}
+            </span>
+          </div>
+
           <div className="order-modal-row order-modal-row-total">
             <span className="label">Сума до сплати</span>
             <span className="value price" id="order-total">
@@ -40,6 +54,7 @@ export default function OrderModal({
             </span>
           </div>
         </div>
+
         <div className="order-modal-footer">
           <button className="order-btn secondary" onClick={onCancel}>
             Скасувати

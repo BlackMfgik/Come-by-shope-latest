@@ -9,7 +9,9 @@ import { ShoppingCart } from "lucide-react";
 import OrderModal from "./OrderModal";
 import LoginRequiredModal from "./modals/LoginRequiredModal";
 import OrderSuccessModal from "./modals/OrderSuccessModal";
+import IncompleteProfileModal from "./modals/IncompleteProfileModal";
 import EmptyState from "./ui/EmptyState";
+import { getProfileGaps, type ProfileGap } from "@/lib/profileCheck";
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +25,8 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
   const [successTotal, setSuccessTotal] = useState(0);
+  const [incompleteModalOpen, setIncompleteModalOpen] = useState(false);
+  const [profileGaps, setProfileGaps] = useState<ProfileGap[]>([]);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,12 +44,38 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, onClose]);
 
+  function handleCheckoutClick() {
+    if (!token) {
+      setLoginModalOpen(true);
+      return;
+    }
+
+    const gaps = getProfileGaps(user);
+    if (gaps.length > 0) {
+      setProfileGaps(gaps);
+      setIncompleteModalOpen(true);
+      return;
+    }
+
+    setOrderModalOpen(true);
+  }
+
   async function handleConfirmOrder() {
     if (!token) {
       setOrderModalOpen(false);
       setLoginModalOpen(true);
       return;
     }
+
+    // Захисна перевірка — на випадок якщо стан змінився між кліками
+    const gaps = getProfileGaps(user);
+    if (gaps.length > 0) {
+      setOrderModalOpen(false);
+      setProfileGaps(gaps);
+      setIncompleteModalOpen(true);
+      return;
+    }
+
     const validItems = items
       .filter((i) => i.id != null && i.quantity > 0)
       .map((i) => ({ productId: i.id!, quantity: i.quantity }));
@@ -147,7 +177,7 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
             id="checkout-btn"
             disabled={items.length === 0}
             className={items.length === 0 ? "checkout-disabled" : ""}
-            onClick={() => setOrderModalOpen(true)}
+            onClick={handleCheckoutClick}
           >
             Оформити замовлення
           </button>
@@ -156,7 +186,9 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
 
       {orderModalOpen && (
         <OrderModal
-          address={user?.address || "Адресу буде уточнено по телефону"}
+          address={user?.address || ""}
+          cardMaskedPan={user?.card_masked_pan || ""}
+          cardType={user?.card_type}
           total={total}
           onCancel={() => setOrderModalOpen(false)}
           onConfirm={handleConfirmOrder}
@@ -165,6 +197,13 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
 
       {loginModalOpen && (
         <LoginRequiredModal onClose={() => setLoginModalOpen(false)} />
+      )}
+
+      {incompleteModalOpen && (
+        <IncompleteProfileModal
+          gaps={profileGaps}
+          onClose={() => setIncompleteModalOpen(false)}
+        />
       )}
 
       {successModal && (

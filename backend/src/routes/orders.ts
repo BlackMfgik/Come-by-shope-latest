@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { orders, orderItems, products } from "../db/schema.js";
+import { orders, orderItems, products, users } from "../db/schema.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
@@ -90,6 +90,41 @@ export async function ordersRoutes(fastify: FastifyInstance): Promise<void> {
   // ── POST /api/orders ───────────────────────────────────────────────────────
   fastify.post("/", { preHandler: requireAuth }, async (request, reply) => {
     const payload = request.user as JwtPayload;
+
+    // ── Перевірка повноти профілю ───────────────────────────────────────────
+    const [userRecord] = await db
+      .select({
+        phoneVerified: users.phoneVerified,
+        address: users.address,
+        cardMaskedPan: users.cardMaskedPan,
+      })
+      .from(users)
+      .where(eq(users.id, payload.id))
+      .limit(1);
+
+    if (!userRecord) {
+      return reply.code(401).send({ error: "Юзера не знайдено" });
+    }
+
+    const missingFields: string[] = [];
+
+    if (!userRecord.phoneVerified) {
+      missingFields.push("підтверджений номер телефону");
+    }
+    if (!userRecord.address || userRecord.address.trim() === "") {
+      missingFields.push("адреса доставки");
+    }
+    if (!userRecord.cardMaskedPan) {
+      missingFields.push("прив'язана картка");
+    }
+
+    if (missingFields.length > 0) {
+      return reply.code(403).send({
+        error: `Для оформлення замовлення потрібно заповнити: ${missingFields.join(", ")}`,
+        missingFields,
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     const result = createOrderSchema.safeParse(request.body);
     if (!result.success) {
