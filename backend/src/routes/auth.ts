@@ -123,9 +123,23 @@ interface JwtPayload {
 }
 
 function safeUser(user: typeof users.$inferSelect) {
-  const { passwordHash: _pw, ...rest } = user;
+  const {
+    passwordHash: _pw,
+    phoneVerified,
+    cardMaskedPan,
+    cardType,
+    createdAt,
+    updatedAt,
+    ...rest
+  } = user;
   return {
     ...rest,
+    // Перейменовуємо camelCase Drizzle поля у snake_case для фронтенду
+    phone_verified: phoneVerified,
+    card_masked_pan: cardMaskedPan,
+    card_type: cardType,
+    created_at: createdAt,
+    updated_at: updatedAt,
     /** true якщо у юзера встановлений пароль (не OAuth-only акаунт) */
     has_password: user.passwordHash !== null,
   };
