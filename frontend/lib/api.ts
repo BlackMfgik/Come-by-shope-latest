@@ -313,7 +313,9 @@ export async function apiInitWayForPay(
 ): Promise<WayForPayInitResult> {
   const res = await fetch(`${BASE}/api/payment/wayforpay/init`, {
     method: "POST",
-    headers: authHeaders(token),
+    // Fastify вимагає Content-Type щоб парсити body, навіть якщо воно пусте
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({}),
   });
   return handleResponse<WayForPayInitResult>(res);
 }
