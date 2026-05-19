@@ -32,6 +32,7 @@ import {
   type PhoneFormData,
   type OtpFormData,
 } from "@/lib/schemas";
+import { apiSendPhoneOtp, apiVerifyPhoneOtp } from "@/lib/api";
 import type { UserInfo } from "@/types";
 
 // ── Константи ─────────────────────────────────────────────────────────────────
@@ -195,19 +196,11 @@ export default function PhoneVerifyModal({
 
   async function handleSendOtp(data: PhoneFormData, isResend = false) {
     try {
-      // TODO: API POST /api/phone/send-otp
-      // Body: { phone: data.phone, token }
-      // Response: { ok: true }
-      // Якщо бекенд повертає 429 → показати "Занадто багато спроб"
-
-      await new Promise((r) => setTimeout(r, 600)); // simulate
-
+      await apiSendPhoneOtp(data.phone, token);
       setPhoneOtpSent(data.phone, OTP_TTL);
       if (isResend) otpSetValue("code", "");
       toast.success("SMS з кодом відправлено!");
-
       if (!isResend) {
-        // Переходимо на крок OTP через submit success
         phoneForm.reset(data);
       }
     } catch (err: unknown) {
@@ -221,18 +214,10 @@ export default function PhoneVerifyModal({
     if (!phone) return;
 
     try {
-      // TODO: API POST /api/phone/verify-otp
-      // Body: { phone, code: data.code, token }
-      // Response: { ok: true, user: UserInfo }
-      // Errors: 400 { error: "Невірний код" } | 410 { error: "Код протермінувався" }
-
-      await new Promise((r) => setTimeout(r, 600)); // simulate
-
+      const updatedUser = await apiVerifyPhoneOtp(phone, data.code, token);
       clearPhoneVerification();
       toast.success("Телефон підтверджено!");
-
-      // Передаємо оновленого юзера наверх
-      onSuccess({ phone } as UserInfo);
+      onSuccess(updatedUser);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Невірний код";
       otpForm.setError("code", { message: msg });

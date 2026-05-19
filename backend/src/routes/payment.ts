@@ -15,7 +15,7 @@ import { env } from "../env.js";
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
 const initPaymentSchema = z.object({
-  orderId: z.number().int().positive(),
+  orderId: z.number().int().positive().optional(),
   currency: z.string().length(3).default("UAH"),
 });
 
@@ -50,11 +50,16 @@ export async function paymentRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const payload = request.user as JwtPayload;
 
-      const result = initPaymentSchema.safeParse(request.body);
+      const result = initPaymentSchema.safeParse(request.body ?? {});
       if (!result.success) {
         return reply.code(400).send({ error: "Невірні дані" });
       }
       const { orderId, currency } = result.data;
+
+      // Якщо orderId не передано — картка ще не прив'язана до замовлення, повертаємо mock
+      if (!orderId) {
+        return reply.send({ mock: true });
+      }
 
       // Verify order belongs to this user
       const [order] = await db

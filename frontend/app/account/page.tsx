@@ -352,7 +352,7 @@ function AccountPageContent() {
   const updateProfileMutation = useMutation({
     mutationFn: (data: Partial<UserInfo>) => apiUpdateProfile(data, token!),
     onSuccess: (updated) => {
-      saveAuth(token!, updated);
+      saveAuth(token!, { ...user!, ...updated });
       setDisplayName(updated.name ?? "");
       setDisplayAddress(updated.address ?? "");
       toast.success("Профіль оновлено");
@@ -675,9 +675,11 @@ function AccountPageContent() {
           token={token}
           currentPhone={displayPhone}
           onSuccess={(updatedUser) => {
-            saveAuth(token, updatedUser);
-            setDisplayPhone(updatedUser.phone ?? "");
-            setDisplayPhoneVerified(updatedUser.phone_verified ?? false);
+            // Мерджимо з поточним user щоб не втратити has_password та інші поля
+            const merged = { ...user!, ...updatedUser };
+            saveAuth(token!, merged);
+            setDisplayPhone(merged.phone ?? "");
+            setDisplayPhoneVerified(merged.phone_verified ?? false);
             setPhoneModalOpen(false);
             toast.success("Телефон підтверджено ✓");
           }}
@@ -690,11 +692,12 @@ function AccountPageContent() {
         <PaymentCardModal
           token={token}
           onSuccess={(updatedUser) => {
-            saveAuth(token, updatedUser);
+            const merged = { ...user!, ...updatedUser };
+            saveAuth(token!, merged);
             setDisplayCardMasked(
-              updatedUser.card_masked_pan ?? updatedUser.payment ?? "",
+              merged.card_masked_pan ?? merged.payment ?? "",
             );
-            setDisplayCardType(updatedUser.card_type ?? "");
+            setDisplayCardType(merged.card_type ?? "");
             setPaymentModalOpen(false);
             toast.success("Картку збережено ✓");
           }}
