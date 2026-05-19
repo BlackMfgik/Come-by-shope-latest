@@ -826,7 +826,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       await db.delete(phoneOtps).where(eq(phoneOtps.userId, payload.id));
 
-      return reply.send({ ok: true });
+      // Повертаємо оновленого юзера (фронтенд очікує UserInfo, не просто { ok: true })
+      const [updatedUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, payload.id))
+        .limit(1);
+
+      return reply.send(safeUser(updatedUser!));
     },
   );
 

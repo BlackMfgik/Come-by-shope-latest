@@ -214,10 +214,18 @@ export default function PhoneVerifyModal({
     if (!phone) return;
 
     try {
-      const updatedUser = await apiVerifyPhoneOtp(phone, data.code, token);
+      const response = await apiVerifyPhoneOtp(phone, data.code, token);
       clearPhoneVerification();
       toast.success("Телефон підтверджено!");
-      onSuccess(updatedUser);
+
+      // Бекенд може повернути повний UserInfo або { ok: true } (старий формат).
+      // В обох випадках передаємо оновлений телефон + phone_verified = true.
+      const hasUserData = "email" in response;
+      const update = hasUserData
+        ? response
+        : ({ phone, phone_verified: true } as UserInfo);
+
+      onSuccess(update);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Невірний код";
       otpForm.setError("code", { message: msg });
