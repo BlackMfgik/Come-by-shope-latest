@@ -29,6 +29,22 @@ const idParamSchema = z.object({
   id: z.string().regex(/^\d+$/).transform(Number),
 });
 
+// ─── Хелпер: нормалізація decimal/date полів ─────────────────────────────────
+
+function normalizeProduct(p: {
+  id: number;
+  name: string;
+  description: string | null;
+  weight: string | null;
+  price: string;
+  image: string | null;
+  category: string;
+  hidden: boolean;
+  createdAt: Date;
+}) {
+  return { ...p, price: Number(p.price) };
+}
+
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
@@ -40,7 +56,7 @@ export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
       .where(eq(products.hidden, false))
       .orderBy(asc(products.createdAt));
 
-    return reply.send(rows);
+    return reply.send(rows.map(normalizeProduct));
   });
 
   // ── GET /api/products/:id ──────────────────────────────────────────────────
@@ -61,7 +77,7 @@ export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: "Товар не знайдено" });
     }
 
-    return reply.send(product);
+    return reply.send(normalizeProduct(product));
   });
 
   // ── GET /api/categories ────────────────────────────────────────────────────
@@ -100,7 +116,7 @@ export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.code(500).send({ error: "Помилка створення товару" });
     }
 
-    return reply.code(201).send(product);
+    return reply.code(201).send(normalizeProduct(product));
   });
 
   // ── PUT /api/products/:id (admin) ──────────────────────────────────────────
@@ -134,7 +150,7 @@ export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "Товар не знайдено" });
       }
 
-      return reply.send(product);
+      return reply.send(normalizeProduct(product));
     },
   );
 
@@ -164,7 +180,7 @@ export async function productsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "Товар не знайдено" });
       }
 
-      return reply.send(product);
+      return reply.send(normalizeProduct(product));
     },
   );
 

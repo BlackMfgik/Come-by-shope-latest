@@ -19,23 +19,26 @@ export default function OtpInput({
 
   function handleChange(i: number, v: string) {
     const digit = v.replace(/\D/g, "").slice(-1);
-    const arr = value.padEnd(6, " ").split("");
-    arr[i] = digit || " ";
-    const next = arr.join("").trimEnd().slice(0, 6);
-    onChange(next);
+    // Завжди тримаємо рівно 6 символів; порожні клітинки = "0"-placeholder
+    // але передаємо вверх тільки заповнені цифри як суцільний рядок
+    const chars = Array.from({ length: 6 }, (_, k) => value[k] ?? "");
+    chars[i] = digit;
+    // Будуємо значення: беремо всі до останньої заповненої цифри
+    const joined = chars.join("");
+    const trimmed = joined.replace(/\s+/g, "").slice(0, 6); // видаляємо випадкові пробіли
+    onChange(joined.trimEnd()); // передаємо без хвостових порожніх
     if (digit && i < 5) refs.current[i + 1]?.focus();
   }
 
   function handleKeyDown(i: number, e: React.KeyboardEvent) {
     if (e.key === "Backspace") {
-      if (value[i]) {
-        const arr = value.split("");
-        arr[i] = "";
-        onChange(arr.join(""));
+      const chars = Array.from({ length: 6 }, (_, k) => value[k] ?? "");
+      if (chars[i]) {
+        chars[i] = "";
+        onChange(chars.join("").trimEnd());
       } else if (i > 0) {
-        const arr = value.split("");
-        arr[i - 1] = "";
-        onChange(arr.join(""));
+        chars[i - 1] = "";
+        onChange(chars.join("").trimEnd());
         refs.current[i - 1]?.focus();
       }
     } else if (e.key === "ArrowLeft" && i > 0) {

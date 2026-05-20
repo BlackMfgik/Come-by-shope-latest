@@ -1,7 +1,7 @@
 // src/routes/orders.ts
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { orders, orderItems, products, users } from "../db/schema.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -27,6 +27,27 @@ interface JwtPayload {
   admin: boolean;
 }
 
+// ─── Хелпер: нормалізація decimal-полів ──────────────────────────────────────
+
+function normalizeOrder(
+  order: typeof orders.$inferSelect,
+  items: (typeof orderItems.$inferSelect)[],
+) {
+  return {
+    id: order.id,
+    status: order.status,
+    total: Number(order.total),
+    createdAt: order.createdAt,
+    items: items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      price: Number(item.price),
+    })),
+  };
+}
+
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 export async function ordersRoutes(fastify: FastifyInstance): Promise<void> {
@@ -46,43 +67,23 @@ export async function ordersRoutes(fastify: FastifyInstance): Promise<void> {
 
     const orderIds = userOrders.map((o) => o.id);
 
-    // Fetch all items for these orders in one query
+    // Один запит для ВСІХ items замість N окремих
     const allItems = await db
       .select()
       .from(orderItems)
-      .where(
-        orderIds.length === 1
-          ? eq(orderItems.orderId, orderIds[0]!)
-          : // Use IN via raw SQL for multiple IDs — still parameterized via Drizzle
-            eq(orderItems.orderId, orderIds[0]!), // fallback, see note below
-      );
+      .where(inArray(orderItems.orderId, orderIds));
 
-    // For multiple orders, we need a different approach
-    // Fetch items per order (Drizzle doesn't have inArray from pg-core directly)
-    const itemsMap = new Map<number, typeof allItems>();
-
-    if (orderIds.length === 1) {
-      const items = await db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, orderIds[0]!));
-      itemsMap.set(orderIds[0]!, items);
-    } else {
-      // Fetch items for all orders using individual queries grouped
-      // (better: use sql`= ANY(${...})` but we keep it safe with Drizzle helpers)
-      for (const orderId of orderIds) {
-        const items = await db
-          .select()
-          .from(orderItems)
-          .where(eq(orderItems.orderId, orderId));
-        itemsMap.set(orderId, items);
-      }
+    // Групуємо items по orderId
+    const itemsMap = new Map<number, (typeof orderItems.$inferSelect)[]>();
+    for (const item of allItems) {
+      const list = itemsMap.get(item.orderId) ?? [];
+      list.push(item);
+      itemsMap.set(item.orderId, list);
     }
 
-    const result = userOrders.map((order) => ({
-      ...order,
-      items: itemsMap.get(order.id) ?? [],
-    }));
+    const result = userOrders.map((order) =>
+      normalizeOrder(order, itemsMap.get(order.id) ?? []),
+    );
 
     return reply.send(result);
   });
@@ -107,16 +108,10 @@ export async function ordersRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const missingFields: string[] = [];
-
-    if (!userRecord.phoneVerified) {
+    if (!userRecord.phoneVerified)
       missingFields.push("підтверджений номер телефону");
-    }
-    if (!userRecord.address || userRecord.address.trim() === "") {
-      missingFields.push("адреса доставки");
-    }
-    if (!userRecord.cardMaskedPan) {
-      missingFields.push("прив'язана картка");
-    }
+    if (!userRecord.address?.trim()) missingFields.push("адреса доставки");
+    if (!userRecord.cardMaskedPan) missingFields.push("прив'язана картка");
 
     if (missingFields.length > 0) {
       return reply.code(403).send({
@@ -124,84 +119,64 @@ export async function ordersRoutes(fastify: FastifyInstance): Promise<void> {
         missingFields,
       });
     }
-    // ────────────────────────────────────────────────────────────────────────
 
+    // ── Валідація тіла запиту ───────────────────────────────────────────────
     const result = createOrderSchema.safeParse(request.body);
     if (!result.success) {
       return reply.code(400).send({ error: "Невірні дані замовлення" });
     }
     const { items } = result.data;
 
-    // Fetch all product prices from DB (never trust client prices)
     const productIds = [...new Set(items.map((i) => i.productId))];
 
-    // Fetch each product separately (safe, parameterized)
-    const fetchedProducts: Map<number, typeof products.$inferSelect> =
-      new Map();
+    // Один запит для ВСІХ продуктів замість N окремих
+    const fetchedRows = await db
+      .select()
+      .from(products)
+      .where(inArray(products.id, productIds));
 
+    const fetchedProducts = new Map(fetchedRows.map((p) => [p.id, p]));
+
+    // Перевіряємо що всі продукти існують і не приховані
     for (const productId of productIds) {
-      const [product] = await db
-        .select()
-        .from(products)
-        .where(eq(products.id, productId))
-        .limit(1);
-
+      const product = fetchedProducts.get(productId);
       if (!product || product.hidden) {
         return reply
           .code(400)
           .send({ error: `Товар ID=${productId} недоступний` });
       }
-
-      fetchedProducts.set(productId, product);
     }
 
-    // Validate quantities
-    for (const item of items) {
-      if (item.quantity < 1) {
-        return reply
-          .code(400)
-          .send({ error: "Кількість товару повинна бути більше 0" });
-      }
-    }
-
-    // Calculate total from DB prices
+    // Рахуємо total з цін БД (ніколи не довіряємо клієнту)
     let total = 0;
     for (const item of items) {
-      const product = fetchedProducts.get(item.productId)!;
-      total += parseFloat(product.price) * item.quantity;
+      total +=
+        parseFloat(fetchedProducts.get(item.productId)!.price) * item.quantity;
     }
 
-    // Execute in a transaction
+    // Транзакція
     const createdOrder = await db.transaction(async (tx) => {
       const [order] = await tx
         .insert(orders)
-        .values({
-          userId: payload.id,
-          total: total.toFixed(2),
-        })
+        .values({ userId: payload.id, total: total.toFixed(2) })
         .returning();
 
-      if (!order) {
-        throw new Error("Помилка створення замовлення");
-      }
+      if (!order) throw new Error("Помилка створення замовлення");
 
-      const itemValues = items.map((item) => {
-        const product = fetchedProducts.get(item.productId)!;
-        return {
-          orderId: order.id,
-          productId: item.productId,
-          productName: product.name,
-          quantity: item.quantity,
-          price: product.price,
-        };
-      });
+      const itemValues = items.map((item) => ({
+        orderId: order.id,
+        productId: item.productId,
+        productName: fetchedProducts.get(item.productId)!.name,
+        quantity: item.quantity,
+        price: fetchedProducts.get(item.productId)!.price,
+      }));
 
       const insertedItems = await tx
         .insert(orderItems)
         .values(itemValues)
         .returning();
 
-      return { ...order, items: insertedItems };
+      return normalizeOrder(order, insertedItems);
     });
 
     return reply.code(201).send(createdOrder);
