@@ -1,4 +1,3 @@
-// Inline Google SVG icon (Lucide не має офіційної Google іконки)
 export default function GoogleIcon({ size = 20 }: { size?: number }) {
   return (
     <svg

@@ -245,7 +245,6 @@ function OrderCard({
         background: "var(--color-background-primary)",
       }}
     >
-      {/* Заголовок картки */}
       <div
         onClick={() => setOpen((o) => !o)}
         style={{
@@ -345,7 +344,6 @@ function OrderCard({
         </div>
       </div>
 
-      {/* Розгорнута частина */}
       {open && (
         <div
           style={{
@@ -353,7 +351,6 @@ function OrderCard({
             padding: "16px 18px",
           }}
         >
-          {/* Контакти замовника */}
           <div
             style={{
               display: "flex",
@@ -417,7 +414,6 @@ function OrderCard({
             )}
           </div>
 
-          {/* Товари */}
           <div style={{ marginBottom: 16 }}>
             {order.items.map((item, idx) => (
               <div
@@ -472,7 +468,6 @@ function OrderCard({
             </div>
           </div>
 
-          {/* Кнопки зміни статусу */}
           {nextStatuses.length > 0 && (
             <div>
               <div
@@ -520,7 +515,6 @@ function OrderCard({
             </div>
           )}
 
-          {/* Фінальні статуси */}
           {nextStatuses.length === 0 && (
             <div
               style={{
@@ -907,7 +901,6 @@ export default function AdminPanel() {
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      {/* ── Таби ── */}
       <div
         style={{
           display: "flex",
@@ -956,7 +949,6 @@ export default function AdminPanel() {
         ))}
       </div>
 
-      {/* ── Вміст: Товари ── */}
       {activeTab === "products" && (
         <div
           style={{
@@ -966,7 +958,6 @@ export default function AdminPanel() {
             alignItems: "start",
           }}
         >
-          {/* Форма */}
           <div
             style={{
               background: "var(--color-background-primary)",
@@ -1013,7 +1004,6 @@ export default function AdminPanel() {
             </div>
 
             <form id="admin-product-form" onSubmit={handleSubmit}>
-              {/* ── Layout: поля зліва + фото справа ── */}
               <div
                 style={{
                   display: "flex",
@@ -1021,7 +1011,6 @@ export default function AdminPanel() {
                   alignItems: "flex-start",
                 }}
               >
-                {/* ── ЛІВА КОЛОНКА: всі текстові поля ── */}
                 <div
                   style={{
                     flex: 1,
@@ -1030,7 +1019,6 @@ export default function AdminPanel() {
                     gap: "0.9rem",
                   }}
                 >
-                  {/* Назва — повна ширина */}
                   <div
                     style={{
                       display: "flex",
@@ -1049,7 +1037,6 @@ export default function AdminPanel() {
                     />
                   </div>
 
-                  {/* Категорія */}
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 4 }}
                   >
@@ -1069,7 +1056,6 @@ export default function AdminPanel() {
                     </select>
                   </div>
 
-                  {/* Нова категорія або порожня клітинка */}
                   {isNewCategory ? (
                     <div
                       style={{
@@ -1090,7 +1076,6 @@ export default function AdminPanel() {
                     <div />
                   )}
 
-                  {/* Ціна */}
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 4 }}
                   >
@@ -1106,7 +1091,6 @@ export default function AdminPanel() {
                     />
                   </div>
 
-                  {/* Вага */}
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 4 }}
                   >
@@ -1119,7 +1103,6 @@ export default function AdminPanel() {
                     />
                   </div>
 
-                  {/* Опис — повна ширина */}
                   <div
                     style={{
                       display: "flex",
@@ -1138,7 +1121,6 @@ export default function AdminPanel() {
                     />
                   </div>
 
-                  {/* Кнопки дій — повна ширина, вирівняні справа */}
                   <div
                     style={{
                       gridColumn: "1 / -1",
@@ -1175,7 +1157,6 @@ export default function AdminPanel() {
                     </button>
                   </div>
                 </div>
-                {/* ── ПРАВА КОЛОНКА: фото товару ── */}
                 <div
                   style={{
                     display: "flex",
@@ -1187,7 +1168,6 @@ export default function AdminPanel() {
                 >
                   <label style={labelStyle}>Фото товару</label>
 
-                  {/* Перемикач FILE / URL */}
                   <div style={{ display: "flex", gap: 4 }}>
                     {(["file", "url"] as const).map((mode) => (
                       <button
@@ -1224,7 +1204,6 @@ export default function AdminPanel() {
                   </div>
 
                   {uploadMode === "file" ? (
-                    /* ── Drag & drop зона ── */
                     <label
                       style={{
                         display: "flex",
@@ -1321,7 +1300,6 @@ export default function AdminPanel() {
                       )}
                     </label>
                   ) : (
-                    /* ── URL режим ── */
                     <div
                       style={{
                         display: "flex",
@@ -1375,7 +1353,6 @@ export default function AdminPanel() {
                     </div>
                   )}
 
-                  {/* Кнопка видалення фото */}
                   {form.imageUrl && (
                     <button
                       type="button"
@@ -1404,7 +1381,6 @@ export default function AdminPanel() {
             </form>
           </div>
 
-          {/* Таблиця товарів */}
           <div
             style={{
               background: "var(--color-background-primary)",
@@ -1591,7 +1567,6 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* ── Вміст: Замовлення ── */}
       {activeTab === "orders" && token && <OrdersTab token={token} />}
 
       {deleteTarget && (

@@ -12,12 +12,7 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/app.ts", "src/env.ts"],
     },
-    // Run tests sequentially to avoid port conflicts
     pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
   },
 });

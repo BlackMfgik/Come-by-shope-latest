@@ -67,7 +67,6 @@ export default function CartSidebar({ isOpen, onClose }: Props) {
       return;
     }
 
-    // Захисна перевірка — на випадок якщо стан змінився між кліками
     const gaps = getProfileGaps(user);
     if (gaps.length > 0) {
       setOrderModalOpen(false);

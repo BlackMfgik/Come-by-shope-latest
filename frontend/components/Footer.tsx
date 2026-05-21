@@ -1,4 +1,3 @@
-// Server Component — no 'use client' needed, accordion is CSS-only via <details>
 import { Instagram, ChevronDown } from "lucide-react";
 import { cldUrl, STATIC_IMAGES } from "@/lib/cld";
 
@@ -6,7 +5,6 @@ export default function Footer() {
   return (
     <footer>
       <div className="footer-content">
-        {/* Brand + social */}
         <div className="footer-logo">
           <div className="footer-logo-row">
             <img
@@ -27,7 +25,6 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Contacts — <details> is accordion on mobile, always visible on desktop */}
         <details className="footer-contacts">
           <summary>
             <b>Контакти</b>

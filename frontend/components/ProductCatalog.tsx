@@ -89,8 +89,6 @@ function fuzzyFilter(items: Product[], query: string): Product[] {
     .map(({ item }) => item);
 }
 
-// ─── Константи ───────────────────────────────────────────────────────────────
-
 const PAGE_SIZE = 8;
 
 const EMPTY_FORM = {
@@ -103,8 +101,6 @@ const EMPTY_FORM = {
   customCategory: "",
 };
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
 interface Props {
   initialProducts: Product[];
   searchQuery?: string;
@@ -112,8 +108,6 @@ interface Props {
   limit?: number;
   hideFilter?: boolean;
 }
-
-// ─── Компонент ────────────────────────────────────────────────────────────────
 
 export default function ProductCatalog({
   initialProducts,
@@ -149,8 +143,6 @@ export default function ProductCatalog({
   const isNewCategory = form.category === "__new__";
   const effectiveCategory = isNewCategory ? form.customCategory : form.category;
 
-  // ─── TanStack Query: завантаження товарів ─────────────────────────────────
-
   const {
     data: products = initialProducts,
     isLoading,
@@ -158,20 +150,13 @@ export default function ProductCatalog({
   } = useQuery({
     queryKey: ["products"],
     queryFn: () => apiGetProducts(),
-    // SSR initialData — не перезавантажує якщо дані свіжі
     initialData: initialProducts,
-    // Перевіряти свіжість кожні 60 сек
     staleTime: 60_000,
   });
-
-  // Скидати сторінку при зміні пошуку / категорії
   useMemo(() => {
     setPage(1);
   }, [effectiveQuery, activeCategory]);
 
-  // ─── TanStack Query: мутації ──────────────────────────────────────────────
-
-  /** Після будь-якої мутації — інвалідувати кеш продуктів */
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["products"] });
 
@@ -347,11 +332,8 @@ export default function ProductCatalog({
     color: "var(--text-2)",
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <>
-      {/* ── Адмін форма ── */}
       {isAdmin && (
         <div
           style={{
@@ -396,7 +378,6 @@ export default function ProductCatalog({
                 marginBottom: "1.5rem",
               }}
             >
-              {/* Шапка панелі */}
               <div
                 style={{
                   display: "flex",
@@ -446,7 +427,6 @@ export default function ProductCatalog({
                     alignItems: "flex-start",
                   }}
                 >
-                  {/* ── ЛІВО: Фото ── */}
                   <div
                     style={{
                       display: "flex",
@@ -458,7 +438,6 @@ export default function ProductCatalog({
                   >
                     <label style={labelStyle}>Фото</label>
 
-                    {/* Upload зона */}
                     <label
                       style={{
                         position: "relative",
@@ -577,7 +556,6 @@ export default function ProductCatalog({
                       )}
                     </label>
 
-                    {/* FILE / URL перемикач */}
                     <div style={{ display: "flex", gap: 4 }}>
                       {(["file", "url"] as const).map((mode) => (
                         <button
@@ -611,7 +589,6 @@ export default function ProductCatalog({
                       ))}
                     </div>
 
-                    {/* URL input (якщо вибрано URL режим) */}
                     {uploadMode === "url" && (
                       <div
                         style={{
@@ -654,7 +631,6 @@ export default function ProductCatalog({
                     )}
                   </div>
 
-                  {/* ── ПРАВО: Поля ── */}
                   <div
                     style={{
                       flex: 1,
@@ -663,7 +639,6 @@ export default function ProductCatalog({
                       gap: "0.75rem",
                     }}
                   >
-                    {/* Назва — повна ширина */}
                     <div
                       style={{
                         gridColumn: "1 / -1",
@@ -682,7 +657,6 @@ export default function ProductCatalog({
                       />
                     </div>
 
-                    {/* Категорія */}
                     <div
                       style={{
                         display: "flex",
@@ -706,7 +680,6 @@ export default function ProductCatalog({
                       </select>
                     </div>
 
-                    {/* Нова категорія або пуста клітинка */}
                     {isNewCategory ? (
                       <div
                         style={{
@@ -727,7 +700,6 @@ export default function ProductCatalog({
                       <div />
                     )}
 
-                    {/* Ціна */}
                     <div
                       style={{
                         display: "flex",
@@ -747,7 +719,6 @@ export default function ProductCatalog({
                       />
                     </div>
 
-                    {/* Вага */}
                     <div
                       style={{
                         display: "flex",
@@ -764,7 +735,6 @@ export default function ProductCatalog({
                       />
                     </div>
 
-                    {/* Опис — повна ширина */}
                     <div
                       style={{
                         gridColumn: "1 / -1",
@@ -786,7 +756,6 @@ export default function ProductCatalog({
                       />
                     </div>
 
-                    {/* Кнопка — вирівняна справа */}
                     <div
                       style={{
                         gridColumn: "1 / -1",
@@ -828,7 +797,6 @@ export default function ProductCatalog({
         </div>
       )}
 
-      {/* ── Фільтр категорій ── */}
       {!hideFilter && categories.length > 0 && (
         <div
           style={
@@ -843,7 +811,6 @@ export default function ProductCatalog({
         </div>
       )}
 
-      {/* ── Каталог ── */}
       <section
         className="catalog"
         id="catalog"
@@ -853,16 +820,13 @@ export default function ProductCatalog({
             : undefined
         }
       >
-        {/* Skeleton при завантаженні */}
         {isLoading &&
           Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
-        {/* Помилка */}
         {!isLoading && isError && (
           <p className="error-wrap">Не вдалося завантажити товари</p>
         )}
 
-        {/* Порожній стан */}
         {!isLoading && !isError && filtered.length === 0 && (
           <div style={{ gridColumn: "1/-1" }}>
             <EmptyState
@@ -878,7 +842,6 @@ export default function ProductCatalog({
           </div>
         )}
 
-        {/* Картки товарів */}
         {!isLoading &&
           paginated.map((p) => {
             const isHidden = p.hidden === true;
@@ -939,7 +902,6 @@ export default function ProductCatalog({
                   </div>
                 </div>
 
-                {/* Admin overlay */}
                 {showOverlay && (
                   <div
                     className="admin-card-overlay"
@@ -996,7 +958,6 @@ export default function ProductCatalog({
           })}
       </section>
 
-      {/* Пагінація */}
       {totalPages > 1 && (
         <div className="pagination">
           <button

@@ -23,7 +23,6 @@ export default function Providers({ children }: { children: ReactNode }) {
     <SessionProvider>
       <QueryProvider>
         <ThemeInitializer />
-        {/* Синхронізує NextAuth сесію → Zustand authStore */}
         <SessionSync />
         {children}
         <Toaster

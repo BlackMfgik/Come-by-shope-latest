@@ -35,7 +35,6 @@ export default function Header() {
   const pathname = usePathname();
   const showSearch = SEARCH_PAGES.includes(pathname);
   const showCart = CART_PAGES.includes(pathname);
-  // Task 10: hide user icon on /account page
   const isAccountPage = pathname === "/account";
 
   const { setLiveQuery, clearQuery } = useSearchStore();
@@ -46,13 +45,12 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Clear live search when navigating away from catalog pages
   useEffect(() => {
     if (!showSearch) {
       clearQuery();
       setSearchQuery("");
     }
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const cartCount = items.reduce((s, i) => s + i.quantity, 0);
 
@@ -85,12 +83,10 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handler);
   }, [searchOpen]);
 
-  // Live update — fires on every keystroke
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setSearchQuery(val);
     if (showSearch) {
-      // Already on a catalog page — filter in place, no navigation
       setLiveQuery(val);
     }
   }
@@ -103,7 +99,6 @@ export default function Header() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!showSearch && searchQuery.trim()) {
-      // Not on a catalog page → navigate to /shop and filter there
       router.push(`/shop`);
       setLiveQuery(searchQuery.trim());
       setSearchOpen(false);
@@ -122,7 +117,6 @@ export default function Header() {
           Come by
         </Link>
 
-        {/* Task 12: Nav center with active state via usePathname */}
         <nav className={`nav-center${navOpen ? " active" : ""}`} id="nav">
           {NAV_LINKS.map(({ href, label }) => {
             const isActive =
@@ -227,7 +221,6 @@ export default function Header() {
             </div>
           )}
 
-          {/* Task 10: hide user link on /account page */}
           {!isAccountPage && (
             <Link
               className="icons-user"

@@ -26,25 +26,6 @@ const mockOrder = {
   createdAt: new Date("2024-01-01"),
 };
 
-const mockItems = [
-  {
-    id: 1,
-    orderId: 1,
-    productId: 1,
-    productName: "Капучино",
-    quantity: 2,
-    price: "75.00",
-  },
-  {
-    id: 2,
-    orderId: 1,
-    productId: 2,
-    productName: "Латте",
-    quantity: 1,
-    price: "25.00",
-  },
-];
-
 const mockProduct = {
   id: 1,
   name: "Капучино",
@@ -57,18 +38,24 @@ const mockProduct = {
   createdAt: new Date("2024-01-01"),
 };
 
+// ─── Фікс 1: додаємо mockUserRecord з усіма обов'язковими полями ─────────────
+const mockUserRecord = {
+  phoneVerified: true,
+  address: "Тестова вулиця, 1",
+  cardMaskedPan: "4444",
+};
+
 vi.mock("../src/db/index.js", () => ({
   db: {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
+    // ─── Фікс 2: limit повертає юзера, а не [] ─────────────────────────────
+    limit: vi.fn().mockResolvedValue([mockUserRecord]),
     orderBy: vi.fn().mockResolvedValue([mockOrder]),
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([mockOrder]),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
     transaction: vi
       .fn()
       .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -79,6 +66,15 @@ vi.mock("../src/db/index.js", () => ({
         };
         return fn(mockTx);
       }),
+    // ─── Фікс 3: робимо db thenable — тепер `await db.select().from().where()`
+    // повертає масив продуктів, а не сам db об'єкт ───────────────────────────
+    then: (
+      resolve: (v: unknown) => unknown,
+      reject?: (e: unknown) => unknown,
+    ) => Promise.resolve([mockProduct]).then(resolve, reject),
+    catch: (reject: (e: unknown) => unknown) =>
+      Promise.resolve([mockProduct]).catch(reject),
+    finally: (fn: () => void) => Promise.resolve([mockProduct]).finally(fn),
   },
 }));
 
@@ -190,7 +186,14 @@ describe("Orders routes", () => {
 
     it("returns 400 for unavailable product", async () => {
       const { db } = await import("../src/db/index.js");
-      (db as { limit: ReturnType<typeof vi.fn> } & typeof db).limit.mockResolvedValueOnce([]); // product not found
+
+      // ─── Фікс 4: мокаємо `then` щоб повернути порожній масив (продукт не знайдено)
+      // limit() досі поверне [mockUserRecord] для перевірки юзера ─────────────
+      const originalThen = (db as any).then;
+      (db as any).then = (
+        resolve: (v: unknown) => unknown,
+        reject?: (e: unknown) => unknown,
+      ) => Promise.resolve([]).then(resolve, reject);
 
       const token = app.jwt.sign({
         id: 1,
@@ -205,6 +208,9 @@ describe("Orders routes", () => {
         payload: { items: [{ productId: 999, quantity: 1 }] },
       });
       expect(response.statusCode).toBe(400);
+
+      // Відновлюємо оригінальний then
+      (db as any).then = originalThen;
     });
   });
 });
